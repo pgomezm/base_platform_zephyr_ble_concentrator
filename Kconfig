@@ -1,0 +1,78 @@
+# Application configuration.
+#
+# Every tunable the firmware has is declared here and consumed through
+# src/config.hpp, so no module reads a Kconfig symbol directly and no behaviour
+# is changed by editing a source file.
+
+menu "BLE to LoRa concentrator"
+
+config APP_MAX_DEVICES
+	int "Maximum endpoint devices tracked at once"
+	default 100
+	range 1 500
+	help
+	  Capacity of the device table. A new device arriving at a full table
+	  evicts the least recently seen entry, and the eviction is counted and
+	  reported in the uplink. This is the hard limit on how many sensors one
+	  concentrator can report from a room.
+
+config APP_ADV_REPORT_POOL_SIZE
+	int "Depth of the raw advertising report pool"
+	default 32
+	range 4 256
+	help
+	  How many advertising reports can be waiting between the BLE callback
+	  and the acquisition thread. This is the burst tolerance: reports that
+	  arrive when the pool is full are dropped and counted, never queued at
+	  the cost of blocking the Bluetooth stack.
+
+config APP_EXPECTED_COMPANY_ID
+	hex "Company identifier accepted in endpoint advertisements"
+	default 0xFFFF
+	help
+	  Advertisements carrying any other company id are discarded. This is a
+	  filter, not an identity: every endpoint of the product line shares it.
+	  Must match the value the endpoint firmware advertises.
+
+config APP_DISPATCH_PERIOD_MIN
+	int "Minutes between uplink dispatches"
+	default 15
+	range 1 1440
+	help
+	  How often the collected readings are sent. Every device heard from
+	  since the last dispatch goes out in one cycle, fragmented across as
+	  many packets as the current LoRa data rate requires.
+
+config APP_DEVICE_STALE_AFTER_S
+	int "Seconds after which a silent device is considered stale"
+	default 3600
+	range 60 86400
+	help
+	  A device that has not advertised for this long is left out of the
+	  uplink. It stays in the table as an eviction candidate. An uplink
+	  listing a device should mean it was heard from recently.
+
+config APP_CONCENTRATOR_ID
+	hex "Identifier of this concentrator"
+	default 0x00000001
+	help
+	  Carried in every uplink header so the receiving side can tell which
+	  concentrator reported.
+
+config APP_REPORT_BOOT
+	bool "Flag the first uplink after a restart"
+	default y
+	help
+	  Sets a flag in the first uplink sent after boot. It tells the
+	  receiving side that the device table started empty, so a gap in a
+	  device's history is a restart rather than an absence. Without it, a
+	  restart has to be inferred, which fails if nobody was listening when
+	  it happened.
+
+module = APP
+module-str = Application
+source "subsys/logging/Kconfig.template.log_config"
+
+endmenu
+
+source "Kconfig.zephyr"

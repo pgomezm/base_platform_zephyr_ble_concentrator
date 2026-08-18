@@ -1,0 +1,70 @@
+/*
+ * Modtronix inAir9 (Semtech SX1276) on the nRF52840 DK's Arduino Uno R3 header.
+ *
+ * Checked against Zephyr's nrf52840dk_nrf52840.dts and the semtech,sx1276
+ * binding. Both need re-checking against whatever revision is pinned in
+ * west.yml before this is trusted: a devicetree property that moved between
+ * releases fails at build time, but a header index that moved fails as a radio
+ * that never answers.
+ *
+ * The arduino_header gpio-map index is NOT the Arduino D number. Indices 0-5
+ * are A0-A5 and 6-19 are D0-D13, so index = 6 + D. This is not a guess: the
+ * board's own dts writes the default SPI chip select, which is D10, as
+ * <&arduino_header 16 ...>. Confirm the map in the dts if anything here does
+ * not respond.
+ *
+ *   inAir9   DK header   index   signal
+ *   ------   ---------   -----   ------
+ *   MISO     D12          18     SPI3 MISO, set by arduino_spi, nothing to declare
+ *   MOSI     D11          17     SPI3 MOSI, set by arduino_spi, nothing to declare
+ *   SCK      D13          19     SPI3 SCK,  set by arduino_spi, nothing to declare
+ *   NSS      D10          16     SPI3 chip select
+ *   RESET    D9           15     reset-gpios
+ *   DIO0     D2            8     dio-gpios[0], TxDone / RxDone
+ *   DIO1     D3            9     dio-gpios[1]
+ *   DIO2     D4           10     dio-gpios[2]
+ *   VCC      3V3
+ *   GND      GND
+ *
+ * The inAir9 breaks out DIO0 to DIO3 only. If a fourth interrupt is ever
+ * needed, D5 (index 11) is free for DIO3; there is nowhere to wire DIO4 or
+ * DIO5, so do not add them.
+ */
+
+/ {
+	aliases {
+		/* hal/lora resolves the radio through this alias, so the driver
+		 * choice stays a board decision and not a source-code one. */
+		lora0 = &sx1276;
+	};
+};
+
+&arduino_spi {
+	status = "okay";
+	cs-gpios = <&arduino_header 16 GPIO_ACTIVE_LOW>; /* D10 */
+
+	sx1276: lora@0 {
+		compatible = "semtech,sx1276";
+		reg = <0>;
+
+		/* 1 MHz for bring-up on jumper wires. Raise it once the wiring
+		 * is on a board rather than in the air. */
+		spi-max-frequency = <1000000>;
+
+		reset-gpios = <&arduino_header 15 GPIO_ACTIVE_LOW>;  /* D9 */
+
+		dio-gpios = <&arduino_header 8  GPIO_ACTIVE_HIGH>,   /* D2, DIO0 */
+			    <&arduino_header 9  GPIO_ACTIVE_HIGH>,   /* D3, DIO1 */
+			    <&arduino_header 10 GPIO_ACTIVE_HIGH>;   /* D4, DIO2 */
+
+		/* The plain inAir9 uses the RFO output. The inAir9B is the
+		 * +20 dBm variant and needs "pa-boost" instead: setting this
+		 * wrong does not fail to build, it transmits into the wrong
+		 * output stage. */
+		power-amplifier-output = "rfo";
+	};
+};
+
+&wdt0 {
+	status = "okay";
+};
