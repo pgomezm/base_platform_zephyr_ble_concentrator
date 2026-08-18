@@ -20,7 +20,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <cstring>
+#include <string.h>
 
 LOG_MODULE_REGISTER(svc_comms, CONFIG_APP_LOG_LEVEL);
 
@@ -77,7 +77,7 @@ EndpointRecord to_record(const device_table::Entry& entry, uint32_t now_s)
 {
     EndpointRecord record{};
 
-    std::memcpy(record.address, entry.address, sizeof(record.address));
+    memcpy(record.address, entry.address, sizeof(record.address));
     record.rssi = entry.rssi;
     record.temperature = entry.reading.temperature;
     record.humidity = entry.reading.humidity;
@@ -119,14 +119,14 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 
     size_t offset = 0U;
 
-    std::memcpy(&s_fragment_buffer[offset], &header, sizeof(header));
+    memcpy(&s_fragment_buffer[offset], &header, sizeof(header));
     offset += sizeof(header);
 
     for (uint8_t index = 0U; index < count; ++index)
     {
         const EndpointRecord record = to_record(p_entries[index], now_s);
 
-        std::memcpy(&s_fragment_buffer[offset], &record, sizeof(record));
+        memcpy(&s_fragment_buffer[offset], &record, sizeof(record));
         offset += sizeof(record);
     }
 

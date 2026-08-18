@@ -67,45 +67,82 @@ Modtronix inAir9, the plain one with the RFO output. The inAir9B is the +20 dBm 
 `power-amplifier-output = "pa-boost"` in the overlay instead: setting that wrong still builds, it
 just transmits into the wrong output stage.
 
-| inAir9 | DK Arduino header |
-| --- | --- |
-| MISO / MOSI / SCK | D12 / D11 / D13, fixed by the board's SPI3 |
-| NSS | D10 |
-| RESET | D9 |
-| DIO0 / DIO1 / DIO2 | D2 / D3 / D4 |
-| VCC | 3V3 |
-| GND | GND |
+| inAir9 | DK header | nRF52840 pin |
+| --- | --- | --- |
+| MISO | D12 | P1.14 |
+| MOSI | D11 | P1.13 |
+| SCK | D13 | P1.15 |
+| NSS | D10 | P1.12 |
+| RESET | D9 | P1.11 |
+| DIO0 | D2 | P1.03 |
+| DIO1 | D3 | P1.04 |
+| DIO2 | D4 | P1.05 |
+| VCC | 3V3 | |
+| GND | GND | |
+
+MISO, MOSI and SCK are fixed by the board's SPI3 and are not a choice. The rest are set in the
+overlay. These pin numbers were read back from the generated devicetree after a real build, not
+taken from a datasheet.
 
 `boards/nrf52840dk_nrf52840.overlay` explains why those indices are what they are. Read it before
 wiring: the header index in devicetree is not the D number.
 
 ## Build
 
-One-time setup, if you do not already have a Zephyr environment:
+This has been built successfully against **Zephyr v4.4.1** with **Zephyr SDK 1.0.1**. Result:
+
+```
+FLASH:  119912 B / 1 MB    (11.4%)
+RAM:     43248 B / 256 KB  (16.5%)
+```
+
+Two prerequisites are easy to get wrong and neither produces an obvious error message:
+
+- **Python 3.12 or newer.** Zephyr 4.4 requires it. On 3.11 the build fails in CMake with
+  "Could NOT find Python3 ... found unsuitable version", which reads like a missing package.
+- **Zephyr SDK 1.0.1**, matching `zephyr/SDK_VERSION`. The minimal SDK plus the `arm-zephyr-eabi`
+  toolchain is enough; the full SDK is a much larger download for no benefit here.
+
+On Windows the practical route is the **nRF Connect for VS Code** extension, which installs a
+matching toolchain and gives you a build/flash button. The command line below is what was actually
+run and verified on Linux; the nRF Connect terminal on Windows takes the same commands.
+
+### One-time setup
 
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate          # .venv\Scripts\activate on Windows
+python3 -m venv .venv                 # must be Python >= 3.12
+source .venv/bin/activate             # .venv\Scripts\activate on Windows
 pip install west
 ```
 
-Then, from an empty directory:
-
 ```sh
-git clone <this-repo-url> base_platform_zephyr_ble_concentrator
-cd base_platform_zephyr_ble_concentrator
-west init -l .
-west update                        # fetches Zephyr, slow the first time
+mkdir zephyr-workspace && cd zephyr-workspace
+git clone <this-repo-url> app_project
+west init -l app_project
+west update                           # fetches Zephyr and its modules, slow the first time
 west zephyr-export
-pip install -r ../zephyr/scripts/requirements.txt
+pip install -r zephyr/scripts/requirements-base.txt
 ```
 
-Build and flash:
+Then the SDK, matching `zephyr/SDK_VERSION`:
 
 ```sh
-west build -b nrf52840dk_nrf52840 . --pristine
+wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz
+tar xf zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz
+cd zephyr-sdk-1.0.1 && ./setup.sh -t arm-zephyr-eabi -c && cd ..
+```
+
+Also needed on the host: `cmake >= 3.20`, `ninja`, `gperf`, `dtc` (device-tree-compiler).
+
+### Build and flash
+
+```sh
+west build -b nrf52840dk/nrf52840 app_project --pristine
 west flash
 ```
+
+Note the board name is `nrf52840dk/nrf52840`, with a slash. The older `nrf52840dk_nrf52840` form
+was replaced by hardware model v2 and no longer resolves.
 
 Keep `--pristine` while the devicetree is still changing; an incremental build does not always pick
 up an overlay edit.

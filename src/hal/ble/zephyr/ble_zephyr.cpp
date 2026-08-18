@@ -12,7 +12,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <cstring>
+#include <string.h>
 
 LOG_MODULE_REGISTER(hal_ble, CONFIG_APP_LOG_LEVEL);
 
@@ -51,7 +51,7 @@ void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
 
     static_assert(sizeof(report.address) == sizeof(p_address->a.val),
                   "BLE address size mismatch between HAL and Zephyr");
-    std::memcpy(report.address, p_address->a.val, sizeof(report.address));
+    memcpy(report.address, p_address->a.val, sizeof(report.address));
 
     report.address_type = p_address->type;
     report.rssi = rssi;
@@ -60,7 +60,7 @@ void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
         (p_buffer->len > k_max_adv_data_size) ? k_max_adv_data_size : p_buffer->len;
 
     report.data_length = static_cast<uint8_t>(length);
-    std::memcpy(report.data, p_buffer->data, length);
+    memcpy(report.data, p_buffer->data, length);
 
     s_adv_report_callback(report);
 }
