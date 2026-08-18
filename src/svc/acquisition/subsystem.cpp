@@ -17,7 +17,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <cstring>
+#include <string.h>
 
 LOG_MODULE_REGISTER(svc_acquisition, CONFIG_APP_LOG_LEVEL);
 
@@ -87,7 +87,7 @@ bool parse_custom_frame(const hal::ble::AdvReport& report, EddystoneCustomFrame&
     // Copied rather than cast in place: the advertising buffer has no alignment
     // guarantee, and reading a uint32_t straight out of it is undefined
     // behaviour on a platform that faults on unaligned access.
-    std::memcpy(&out_frame, report.data, sizeof(EddystoneCustomFrame));
+    memcpy(&out_frame, report.data, sizeof(EddystoneCustomFrame));
 
     if (out_frame.frame_type != static_cast<uint8_t>(EddystoneFrameType::CUSTOM))
     {

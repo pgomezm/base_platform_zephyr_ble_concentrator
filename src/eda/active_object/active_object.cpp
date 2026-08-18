@@ -9,6 +9,8 @@
 #include "eda/port/port.hpp"
 #include "utils/log/log.hpp"
 
+LOG_MODULE_REGISTER(eda, CONFIG_APP_LOG_LEVEL);
+
 namespace eda
 {
 

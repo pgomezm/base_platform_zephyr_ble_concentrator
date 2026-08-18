@@ -8,6 +8,8 @@
 #include "eda/state_machine/state_machine.hpp"
 #include "utils/log/log.hpp"
 
+LOG_MODULE_DECLARE(eda, CONFIG_APP_LOG_LEVEL);
+
 namespace eda
 {
 

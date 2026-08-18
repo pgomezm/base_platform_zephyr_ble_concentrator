@@ -13,7 +13,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <cstring>
+#include <string.h>
 
 LOG_MODULE_REGISTER(svc_device_table, CONFIG_APP_LOG_LEVEL);
 
@@ -43,7 +43,7 @@ uint16_t s_evicted_count = 0U;
 /// @return true if they are the same address
 bool addresses_match(const uint8_t* p_left, const uint8_t* p_right)
 {
-    return std::memcmp(p_left, p_right, hal::ble::k_address_size) == 0;
+    return memcmp(p_left, p_right, hal::ble::k_address_size) == 0;
 }
 
 /// Find the entry for an address.
@@ -127,7 +127,7 @@ void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
     if (p_entry == nullptr)
     {
         p_entry = claim_slot();
-        std::memcpy(p_entry->address, p_address, hal::ble::k_address_size);
+        memcpy(p_entry->address, p_address, hal::ble::k_address_size);
         p_entry->in_use = true;
     }
 
