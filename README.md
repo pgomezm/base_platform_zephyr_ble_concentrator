@@ -92,60 +92,119 @@ wiring: the header index in devicetree is not the D number.
 This has been built successfully against **Zephyr v4.4.1** with **Zephyr SDK 1.0.1**. Result:
 
 ```
-FLASH:  119912 B / 1 MB    (11.4%)
-RAM:     43248 B / 256 KB  (16.5%)
+FLASH:  120084 B / 1 MB    (11.45%)
+RAM:     54704 B / 256 KB  (20.87%)
 ```
+
+This repo is a **west manifest repo**: `west.yml` pins Zephyr v4.4.1 and declares `self: path: .`.
+It therefore has to live *inside* a west workspace, not be one. Cloning it on its own and running
+`cmake` in it will not work.
 
 Two prerequisites are easy to get wrong and neither produces an obvious error message:
 
 - **Python 3.12 or newer.** Zephyr 4.4 requires it. On 3.11 the build fails in CMake with
   "Could NOT find Python3 ... found unsuitable version", which reads like a missing package.
-- **Zephyr SDK 1.0.1**, matching `zephyr/SDK_VERSION`. The minimal SDK plus the `arm-zephyr-eabi`
-  toolchain is enough; the full SDK is a much larger download for no benefit here.
+- **Zephyr SDK matching `zephyr/SDK_VERSION`** (1.0.1 at the pinned revision). The
+  `arm-zephyr-eabi` toolchain alone is enough; the full SDK is a much larger download for no
+  benefit here.
 
-On Windows the practical route is the **nRF Connect for VS Code** extension, which installs a
-matching toolchain and gives you a build/flash button. The command line below is what was actually
-run and verified on Linux; the nRF Connect terminal on Windows takes the same commands.
+### Workspace layout
 
-### One-time setup
+Keep the path short. Zephyr builds still hit Windows' `MAX_PATH` limit, and a deep workspace root
+produces link errors that name a file rather than the real cause.
 
-```sh
-python3 -m venv .venv                 # must be Python >= 3.12
-source .venv/bin/activate             # .venv\Scripts\activate on Windows
+```
+D:\zws\
+├── .west\           created by west init
+├── app_project\     this repo
+├── zephyr\          fetched by west update, ~1.5 GB
+└── modules\         fetched by west update
+```
+
+### One-time setup (Windows)
+
+Host tools, once, from an elevated PowerShell:
+
+```powershell
+winget install Kitware.CMake Ninja-build.Ninja oss-winget.gperf oss-winget.dtc Git.Git Python.Python.3.12 7zip.7zip
+```
+
+Workspace and west:
+
+```powershell
+mkdir D:\zws
+cd D:\zws
+py -3.12 -m venv .venv
+.venv\Scripts\activate
 pip install west
-```
 
-```sh
-mkdir zephyr-workspace && cd zephyr-workspace
-git clone <this-repo-url> app_project
+git clone https://github.com/pgomezm/base_platform_zephyr_ble_concentrator.git app_project
 west init -l app_project
-west update                           # fetches Zephyr and its modules, slow the first time
+west update                       # fetches Zephyr and its modules, slow the first time
 west zephyr-export
-pip install -r zephyr/scripts/requirements-base.txt
+pip install -r zephyr\scripts\requirements.txt
 ```
 
-Then the SDK, matching `zephyr/SDK_VERSION`:
+`west update` pulls in Zephyr's own module list, which is where `loramac-node` — the stack behind
+`CONFIG_LORAWAN` — comes from.
+
+Then the toolchain, whose version must match `zephyr\SDK_VERSION`:
+
+```powershell
+type zephyr\SDK_VERSION
+west sdk install -t arm-zephyr-eabi
+```
+
+### One-time setup (Linux)
+
+Same shape, and this is the combination the numbers above were measured on:
 
 ```sh
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz
-tar xf zephyr-sdk-1.0.1_linux-x86_64_minimal.tar.xz
-cd zephyr-sdk-1.0.1 && ./setup.sh -t arm-zephyr-eabi -c && cd ..
+mkdir zws && cd zws
+python3 -m venv .venv && source .venv/bin/activate
+pip install west
+git clone https://github.com/pgomezm/base_platform_zephyr_ble_concentrator.git app_project
+west init -l app_project
+west update && west zephyr-export
+pip install -r zephyr/scripts/requirements.txt
+west sdk install -t arm-zephyr-eabi
 ```
 
 Also needed on the host: `cmake >= 3.20`, `ninja`, `gperf`, `dtc` (device-tree-compiler).
 
 ### Build and flash
 
-```sh
+From the workspace root, with the venv active:
+
+```
 west build -b nrf52840dk/nrf52840 app_project --pristine
 west flash
 ```
+
+The image lands in `build/zephyr/zephyr.hex`.
 
 Note the board name is `nrf52840dk/nrf52840`, with a slash. The older `nrf52840dk_nrf52840` form
 was replaced by hardware model v2 and no longer resolves.
 
 Keep `--pristine` while the devicetree is still changing; an incremental build does not always pick
 up an overlay edit.
+
+`west flash` drives the DK's onboard J-Link, so it needs either the nRF Command Line Tools or the
+J-Link software installed and on `PATH`.
+
+### Day to day
+
+```
+west build                                                 # incremental
+west build -t menuconfig                                   # inspect the resulting Kconfig
+west build -b nrf52840dk/nrf52840 app_project -p always     # force clean
+```
+
+### A note on hal/os/freertos
+
+`src/hal/os/freertos/os_freertos.cpp` is deliberately absent from `CMakeLists.txt` and is not
+compiled by any of the commands above. It is a ready second backend for the `hal::os` seam, not
+part of this firmware; see `src/hal/os/os.md`.
 
 ## Watching it run
 
@@ -155,6 +214,9 @@ Windows, check Device Manager for the COM port.
 ```sh
 minicom -D /dev/ttyACM0 -b 115200
 ```
+
+On Windows, PuTTY or Tera Term on the COM port at the same settings; the DK exposes three COM
+ports and the console is the lowest-numbered of them.
 
 Expect the state machine to log its transitions, `svc_acquisition` to report its pool depth, and
 `svc_system_diagnostics` to print a health line once a minute with the number of devices tracked,
