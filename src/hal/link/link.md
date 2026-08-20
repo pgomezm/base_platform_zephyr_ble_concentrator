@@ -48,11 +48,45 @@ fragments the same way on both.
 
 ## Backends
 
-| backend | source | status |
-| --- | --- | --- |
-| LoRaWAN | `lora/link_lora.cpp` | built; `connect()` still returns `CONNECT_ERROR`, see open item 1 |
-| TCP | not written yet | waiting on the board decision for the v2 hardware |
+| backend | source | selected by | status |
+| --- | --- | --- | --- |
+| LoRaWAN | `lora/link_lora.cpp` | `CONFIG_APP_LINK_LORA` (default) | `connect()` still returns `CONNECT_ERROR`; the join mode is undecided, see open item 1 |
+| TCP | `tcp/link_tcp.cpp` | `CONFIG_APP_LINK_TCP` | compiles; never run against real hardware |
 
-Exactly one is listed in `CMakeLists.txt`. The TCP backend is deliberately not
-written ahead of knowing which board runs it: an unbuildable backend is exactly
-what the FreeRTOS `hal::os` backend was before it was removed.
+`CMakeLists.txt` compiles exactly one, and the Kconfig choice also selects the
+Zephyr subsystem that backend needs — `LORA`/`LORAWAN` for one, `NETWORKING`/
+`NET_TCP`/`NET_SOCKETS` for the other. That is why `prj.conf` mentions neither:
+the transport is one symbol, not a block of them.
+
+Build the TCP variant with:
+
+```sh
+west build -b nrf52840dk/nrf52840 <app> -- -DCONFIG_APP_LINK_TCP=y
+```
+
+It builds without any Ethernet hardware present. It will not *run* without a
+network interface — `initialize()` reports `NOT_READY` when
+`net_if_get_default()` returns nothing — but keeping it compiling from the start
+is what stops the TCP path from rotting while the hardware is being decided.
+
+## Two things the TCP backend does not do yet
+
+**No downlink.** `register_downlink_callback()` stores the callback and nothing
+delivers to it. Receiving would need a reader thread parked in `zsock_recv()`,
+and what a downlink means over a stream with no framing is undecided. It is
+accepted rather than rejected so `svc::comms` is written identically on both
+backends.
+
+**No reconnect strategy of its own.** A failed `send()` closes the socket and
+reports `SEND_ERROR`; rebuilding the connection is the next `connect()`, which
+the state machine's error path already drives. The transport does not retry
+behind anyone's back.
+
+## Why the TCP link reports a payload limit it does not have
+
+`get_max_payload_size()` returns `CONFIG_APP_LINK_TCP_MAX_FRAGMENT`, default 242
+— the LoRaWAN ceiling. TCP has no such limit, but declaring one keeps
+`svc::comms` fragmenting exactly as it does on LoRaWAN, so both variants emit the
+same wire format and there is one fragmentation path to test instead of two. A
+fragment built by the TCP variant is always one a LoRa build could also have
+sent.

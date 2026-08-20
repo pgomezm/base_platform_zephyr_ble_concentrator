@@ -9,3 +9,6 @@ twister-out/
 # Staging area for files that are obsolete but could not be deleted from this
 # machine directly. Nothing here is part of the firmware.
 _to_delete/
+
+# Coding-agent workspace config, local to one machine.
+.claude/

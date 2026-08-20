@@ -1,0 +1,16 @@
+# Wiznet W5500 Ethernet controller on the SPI header.
+#
+# Used with CONFIG_APP_LINK_TCP to give a board with no integrated MAC a network
+# interface:
+#
+#   west build -b nrf52840dk/nrf52840 <app> -S eth-w5500 -- -DCONFIG_APP_LINK_TCP=y
+#
+# A snippet rather than a second board overlay so the default LoRa build stays
+# one plain command, and so the TCP hardware is named at the point of use
+# instead of being something the reader has to know to pass.
+
+name: eth-w5500
+
+append:
+  EXTRA_DTC_OVERLAY_FILE: w5500.overlay
+  EXTRA_CONF_FILE: w5500.conf
