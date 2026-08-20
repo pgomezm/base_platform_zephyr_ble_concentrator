@@ -1,0 +1,78 @@
+# West manifest for this application.
+#
+# This file also defines the workspace: `west init -l` was pointed at this
+# repository, so the Zephyr revision pinned below is the one every application
+# sitting beside it in the workspace builds against. Bumping it here moves all
+# of them.
+#
+# Applications live as sibling directories of this one and are ordinary git
+# repositories cloned by hand. They are deliberately NOT listed as west
+# projects: `west update` checks a project out at its pinned revision with a
+# detached HEAD, which is the wrong behaviour for a repository someone develops
+# in daily.
+
+manifest:
+  version: "0.13"
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+
+      # Pin deliberately. Bump it as a reviewed change, not by drift: every
+      # Kconfig symbol and devicetree property used by every application in
+      # this workspace has to be confirmed against whatever revision is here.
+      revision: v4.4.1
+
+      # Import Zephyr's own manifest, but only the modules the targets in this
+      # workspace actually build against.
+      #
+      # A bare `import: true` pulls Zephyr's entire module list: every vendor
+      # HAL (Espressif, NXP, Microchip, Infineon, Renesas, TI, Atmel, ...)
+      # plus OpenThread, LVGL, TF-M and the rest. That is roughly 9 GB on disk
+      # to build for three boards. The allowlist below is what those three
+      # boards and this firmware's feature set need, and nothing else.
+      #
+      # Targets this list is sized for:
+      #   nRF52840 DK   (PCA10056)   -> hal_nordic
+      #   Nucleo F429ZI              -> hal_stm32
+      #   Nucleo H743ZI2             -> hal_stm32
+      #
+      # Adding a board from a new vendor means adding its HAL here and running
+      # `west update` again. A missing module does not fail quietly: CMake
+      # stops with the module's name in the error, so the fix is always
+      # obvious.
+      import:
+        name-allowlist:
+          # Toolchain and C library, needed by every Cortex-M build.
+          - cmsis
+          - cmsis_6
+          - picolibc
+          - mbedtls-3.6
+          - tf-psa-crypto
+
+          # Vendor HALs, one per silicon family in use.
+          - hal_nordic
+          - hal_stm32
+
+          # ST's MEMS sensor drivers. Small, and pulled in by several ST board
+          # definitions whether or not a sensor is wired up.
+          - hal_st
+
+          # LoRaWAN. This is the stack behind CONFIG_LORAWAN.
+          - loramac-node
+
+          # Crypto for the Bluetooth host.
+          - mbedtls
+
+          # SEGGER RTT, used for logging over the debug probe.
+          - segger
+
+          # CBOR codec, pulled in by several Zephyr subsystems.
+          - zcbor
+
+  self:
+    path: manifest
