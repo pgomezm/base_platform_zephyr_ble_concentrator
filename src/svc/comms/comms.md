@@ -14,11 +14,11 @@ fragmentation and the radio call all live here rather than in four separate serv
 | --- | --- |
 | **Owns** | The dispatch timer, the uplink wire format, the fragmentation logic, and the sequence counter. |
 | **Exposes** | `initialize()`, `get_port()`, `start_dispatch_timer()`, `stop_dispatch_timer()`. |
-| **Depends on** | `svc/device_table` (read-only), `hal/lora`, `svc/acquisition` (for the dropped-report counter). |
+| **Depends on** | `svc/device_table` (read-only), `hal/link`, `svc/acquisition` (for the dropped-report counter). |
 
 ## The single writer
 
-**This service is the only caller of `hal::lora::send()`.** Two contexts writing to the same SPI
+**This service is the only caller of `hal::link::send()`.** Two contexts writing to the same SPI
 radio corrupt each other silently rather than failing loudly, so this is the constraint in the
 design most worth restating: nothing else transmits, including `svc::system_diagnostics`, which may
 read radio status but never sends.

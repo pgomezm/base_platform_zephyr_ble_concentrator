@@ -26,10 +26,10 @@ enum class Event : uint32_t
     /// A service failed to initialize.
     SERVICES_FAILED,
 
-    /// The LoRaWAN join succeeded.
+    /// The uplink transport connected to its network.
     NETWORK_JOINED,
 
-    /// The LoRaWAN join failed or timed out.
+    /// The uplink transport failed to connect, or timed out.
     NETWORK_JOIN_FAILED,
 
     /// An uplink dispatch started.

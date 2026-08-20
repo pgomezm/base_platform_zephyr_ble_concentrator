@@ -43,7 +43,12 @@ target_sources(app PRIVATE
     src/hal/ble/zephyr/ble_zephyr.cpp
     src/hal/gpio/zephyr/gpio_zephyr.cpp
     src/hal/led/led.cpp
-    src/hal/lora/zephyr/lora_zephyr.cpp
+    # Exactly one link backend is compiled. It is what makes this repository
+    # build both concentrator variants: LoRaWAN here, TCP on a board with a
+    # wired network. Adding that second backend means adding
+    # src/hal/link/tcp/link_tcp.cpp and selecting between the two here, not
+    # forking anything above hal/link.
+    src/hal/link/lora/link_lora.cpp
     src/hal/os/zephyr/os_zephyr.cpp
     src/hal/system/zephyr/system_zephyr.cpp
     src/hal/watchdog/zephyr/watchdog_zephyr.cpp

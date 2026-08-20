@@ -21,7 +21,7 @@ device itself is healthy, as opposed to what it is measuring.
 watchdog into proof that one thread is alive, which is not what it is for. Feeding it from the
 lowest-priority thread means a reset happens when the system as a whole stops making progress.
 
-**This service never transmits.** It reads LoRa status; it does not call `hal::lora::send()`. That
+**This service never transmits.** It reads link status; it does not call `hal::link::send()`. That
 belongs to `svc::comms` alone.
 
 ## What it reports
