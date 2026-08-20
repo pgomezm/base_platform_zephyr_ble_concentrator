@@ -51,7 +51,7 @@ void on_dispatch_timer_expired(eda::Timer* p_timer)
 }
 
 /// Fires every dispatch period, once started by start_dispatch_timer().
-eda::Timer s_dispatch_timer{"dispatch", config::k_dispatch_period_ms, true,
+eda::Timer s_dispatch_timer{"dispatch", config::DISPATCH_PERIOD_MS, true,
                             &on_dispatch_timer_expired};
 
 /// Increments once per dispatch cycle.
@@ -64,7 +64,7 @@ bool s_boot_uplink_sent = false;
 ///
 /// Statically allocated at full table capacity: sizing it smaller would mean a
 /// dispatch could silently report fewer devices than the table holds.
-device_table::Entry s_snapshot[config::k_max_devices];
+device_table::Entry s_snapshot[config::MAX_DEVICES];
 
 /// The fragment currently being assembled.
 ///
@@ -115,7 +115,7 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 {
     UplinkHeader header{};
 
-    header.concentrator_id = config::k_concentrator_id;
+    header.concentrator_id = config::CONCENTRATOR_ID;
     header.sequence = s_sequence;
     header.fragment_index = fragment_index;
     header.fragment_count = fragment_count;
@@ -125,7 +125,7 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 
     header.flags = static_cast<uint8_t>(UplinkFlags::NONE);
 
-    if (config::k_report_boot_in_first_uplink && !s_boot_uplink_sent)
+    if (config::REPORT_BOOT_IN_FIRST_UPLINK && !s_boot_uplink_sent)
     {
         header.flags |= static_cast<uint8_t>(UplinkFlags::BOOT);
     }
@@ -143,9 +143,9 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
         offset += sizeof(record);
     }
 
-    const hal::lora::Result result = hal::lora::send(s_fragment_buffer, offset);
+    const hal::lora::LoraError result = hal::lora::LoraFactory::get_instance().send(s_fragment_buffer, offset);
 
-    if (result != hal::lora::Result::OK)
+    if (result != hal::lora::LoraError::NO_ERROR)
     {
         LOG_ERR("fragment %u/%u failed to send", fragment_index + 1U, fragment_count);
         return false;
@@ -160,13 +160,13 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 /// Build and send the uplink for this dispatch cycle.
 void dispatch()
 {
-    if (!hal::lora::is_joined())
+    if (!hal::lora::LoraFactory::get_instance().is_joined())
     {
         LOG_WRN("dispatch skipped: not joined to a network");
         return;
     }
 
-    const uint8_t max_payload = hal::lora::get_max_payload_size();
+    const uint8_t max_payload = hal::lora::LoraFactory::get_instance().get_max_payload_size();
 
     // The data rate can leave less room than one record needs. Fragmenting into
     // pieces the radio will refuse would loop forever, so this is a wait, not a
@@ -187,7 +187,7 @@ void dispatch()
         return;
     }
 
-    const size_t total_records = device_table::snapshot(s_snapshot, config::k_max_devices);
+    const size_t total_records = device_table::snapshot(s_snapshot, config::MAX_DEVICES);
 
     if (total_records == 0U)
     {
@@ -241,12 +241,12 @@ bool initialize()
     s_active_object.init_task(app::TaskPriorities::COMMS, "comms");
     s_port.init(app::PortList::COMMS_PORT, s_active_object);
 
-    if (hal::lora::initialize() != hal::lora::Result::OK)
+    if (hal::lora::LoraFactory::get_instance().initialize() != hal::lora::LoraError::NO_ERROR)
     {
         return false;
     }
 
-    LOG_INF("comms service ready, dispatch period %u min", config::k_dispatch_period_min);
+    LOG_INF("comms service ready, dispatch period %u min", config::DISPATCH_PERIOD_MIN);
 
     return true;
 }
@@ -273,7 +273,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
     switch (static_cast<Event>(event_id))
     {
     case Event::JOIN_NETWORK:
-        (void)hal::lora::join();
+        (void)hal::lora::LoraFactory::get_instance().join();
         break;
 
     case Event::DISPATCH_DUE:

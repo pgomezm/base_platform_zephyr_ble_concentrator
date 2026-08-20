@@ -5,6 +5,7 @@
 ///
 /// Source file that implements the listening state.
 
+#include "app/app.hpp"
 #include "app/state_machine/listening/listening.hpp"
 #include "app/state_machine/state_machine.hpp"
 #include "app/port.hpp"
@@ -51,15 +52,15 @@ void ListeningState::dispatch_event(uint32_t event_id, uint32_t opt_data_address
     switch (static_cast<Event>(event_id))
     {
     case Event::DISPATCH_STARTED:
-        get_state_machine().transition_to(StateId::DISPATCHING);
+        App::get_instance().get_state_machine().transition_to(StateId::DISPATCHING);
         break;
 
     case Event::SOFT_ERROR:
-        get_state_machine().transition_to(StateId::SOFT_ERROR);
+        App::get_instance().get_state_machine().transition_to(StateId::SOFT_ERROR);
         break;
 
     case Event::HARD_ERROR:
-        get_state_machine().transition_to(StateId::HARD_ERROR);
+        App::get_instance().get_state_machine().transition_to(StateId::HARD_ERROR);
         break;
 
     default:

@@ -18,10 +18,10 @@ namespace hal::ble
 {
 
 /// Length of a BLE device address, in bytes.
-constexpr size_t k_address_size = 6U;
+constexpr size_t ADDRESS_SIZE = 6U;
 
 /// Maximum size of a legacy advertising payload, in bytes.
-constexpr size_t k_max_adv_data_size = 31U;
+constexpr size_t MAX_ADV_DATA_SIZE = 31U;
 
 /// A raw advertising report, exactly as received.
 ///
@@ -32,7 +32,7 @@ struct AdvReport
 {
     /// Advertiser address. The only identity an endpoint has, since the payload
     /// carries no device id.
-    uint8_t address[k_address_size];
+    uint8_t address[ADDRESS_SIZE];
 
     /// Address type, as reported by the controller.
     uint8_t address_type;
@@ -45,7 +45,7 @@ struct AdvReport
     uint8_t data_length;
 
     /// Raw advertising payload.
-    uint8_t data[k_max_adv_data_size];
+    uint8_t data[MAX_ADV_DATA_SIZE];
 };
 
 /// Callback invoked for each advertising report received.
@@ -54,32 +54,63 @@ struct AdvReport
 /// needs and return: no parsing, no blocking, no allocation.
 using AdvReportCallback = void (*)(const AdvReport& report);
 
-/// Initialize the BLE subsystem.
-///
-/// @return true if the stack came up
-bool initialize();
+/// Enum representing possible BLE errors
+enum class BleError : uint32_t
+{
+    /// Indicates that the operation was successful
+    NO_ERROR,
 
-/// Register the callback that receives advertising reports.
-///
-/// Must be called before start_scan().
-///
-/// @param callback the function to call for each report
-void register_adv_report_callback(AdvReportCallback callback);
+    /// Indicates a failure reported by the Bluetooth stack
+    HARDWARE_ERROR,
 
-/// Start passive scanning.
-///
-/// @return true if scanning started
-bool start_scan();
+    /// Indicates the subsystem was already initialized
+    ALREADY_RUNNING,
+};
 
-/// Stop scanning.
-///
-/// @return true if scanning stopped
-bool stop_scan();
+/// Interface for BLE operations
+class IBle
+{
+public:
+    /// Initialize the BLE subsystem
+    ///
+    /// @return BleError indicating success or failure
+    virtual BleError initialize() = 0;
 
-/// Check whether scanning is active.
-///
-/// @return true while scanning
-bool is_scanning();
+    /// Register the callback that receives advertising reports
+    ///
+    /// Must be called before start_scan().
+    ///
+    /// @param callback The function to call for each report
+    virtual void register_adv_report_callback(AdvReportCallback callback) = 0;
+
+    /// Start passive scanning
+    ///
+    /// @return BleError indicating success or failure
+    virtual BleError start_scan() = 0;
+
+    /// Stop scanning
+    ///
+    /// @return BleError indicating success or failure
+    virtual BleError stop_scan() = 0;
+
+    /// Check whether scanning is active
+    ///
+    /// @return true while scanning
+    virtual bool is_scanning() const = 0;
+
+    /// Virtual destructor
+    virtual ~IBle() = default;
+};
+
+/// Factory class for BLE management
+class BleFactory
+{
+public:
+    /// Get the singleton instance of the BLE subsystem
+    ///
+    /// @return Reference to the BLE instance
+    static IBle& get_instance();
+};
 
 } // namespace hal::ble
 

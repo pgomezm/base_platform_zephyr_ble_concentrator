@@ -23,9 +23,9 @@
 /// and a timer each need caller-owned, statically allocated storage sized for
 /// the backend's control block, which a stateless free-function interface
 /// cannot express. Each class below is a thin wrapper around exactly one
-/// kernel object, sized generously enough to hold either a Zephyr or a
-/// FreeRTOS control block; the backend's `static_assert` in its `.cpp` file
-/// is what proves the storage is big enough.
+/// kernel object, sized for the backend's control block; the backend's
+/// `static_assert` in its `.cpp` file is what proves the storage is big
+/// enough.
 
 #pragma once
 
@@ -61,8 +61,7 @@ using IdleCallback = void (*)();
 
 /// Opaque, fixed-size storage for a backend's thread control block.
 ///
-/// Sized to fit Zephyr's `struct k_thread`; a FreeRTOS `StaticTask_t` is
-/// smaller and fits the same budget.
+/// Sized to fit Zephyr's `struct k_thread`, which is 184 B on this target.
 struct ThreadStorage
 {
     alignas(void*) uint8_t bytes[192];
@@ -77,7 +76,7 @@ public:
     /// Stack size used for every thread created through this class, in
     /// bytes. One size for every active object, same as
     /// `deepsight-polaris-software`'s `ActiveObject::s_stack_size`.
-    static constexpr size_t k_stack_size = 2048U;
+    static constexpr size_t STACK_SIZE = 2048U;
 
     Thread();
 
@@ -101,17 +100,11 @@ private:
 
 /// Opaque, fixed-size storage for a backend's queue control block.
 ///
-/// Sized for the larger of the two backends today: Zephyr's `struct k_msgq`
-/// (52 B, `static_assert`-checked in `os_zephyr.cpp`) fits comfortably; the
-/// FreeRTOS backend's `StaticQueue_t` plus its returned `QueueHandle_t` is the
-/// one driving this size, checked by its own `static_assert` in
-/// `os_freertos.cpp` — that assert has not run against a real FreeRTOS
-/// toolchain (this project builds for Zephyr only), so treat the FreeRTOS
-/// side of this budget as provisional until a FreeRTOS build actually
-/// exercises it.
+/// Sized for Zephyr's `struct k_msgq`, which is 52 B on this target and is
+/// `static_assert`-checked in `os_zephyr.cpp`.
 struct QueueStorage
 {
-    alignas(void*) uint8_t bytes[128];
+    alignas(void*) uint8_t bytes[64];
 };
 
 /// A fixed-capacity FIFO of fixed-size items, statically allocated by the
@@ -154,15 +147,11 @@ private:
 
 /// Opaque, fixed-size storage for a backend's timer control block.
 ///
-/// Same provisioning note as QueueStorage above: sized to fit Zephyr's
-/// `struct k_timer` plus this layer's callback/context pair today
-/// (`static_assert`-checked in `os_zephyr.cpp`), with headroom for the
-/// FreeRTOS backend's `StaticTimer_t` plus its `TimerHandle_t` and the same
-/// callback/context pair — unverified until built against real FreeRTOS
-/// headers.
+/// Sized for Zephyr's `struct k_timer` plus this layer's callback/context
+/// pair, `static_assert`-checked in `os_zephyr.cpp`.
 struct TimerStorage
 {
-    alignas(void*) uint8_t bytes[96];
+    alignas(void*) uint8_t bytes[64];
 };
 
 /// A timer that invokes a callback on expiry.

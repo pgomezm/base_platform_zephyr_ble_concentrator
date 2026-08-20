@@ -34,7 +34,7 @@ namespace
 /// Sized by Kconfig, statically allocated. This is the buffer between the BLE
 /// callback and this service's thread: its depth is exactly how much burst the
 /// firmware absorbs before it starts dropping reports.
-char s_report_pool_buffer[config::k_adv_report_pool_size * sizeof(hal::ble::AdvReport)];
+char s_report_pool_buffer[config::ADV_REPORT_POOL_SIZE * sizeof(hal::ble::AdvReport)];
 
 /// The raw advertising report pool.
 struct k_msgq s_report_pool;
@@ -97,7 +97,7 @@ bool parse_custom_frame(const hal::ble::AdvReport& report, EddystoneCustomFrame&
 
     // The only content filter in the receive path. Everything else advertising
     // nearby is somebody else's device.
-    if (out_frame.company_id != config::k_expected_company_id)
+    if (out_frame.company_id != config::EXPECTED_COMPANY_ID)
     {
         return false;
     }
@@ -138,19 +138,19 @@ void drain_report_pool()
 bool initialize()
 {
     k_msgq_init(&s_report_pool, s_report_pool_buffer, sizeof(hal::ble::AdvReport),
-                config::k_adv_report_pool_size);
+                config::ADV_REPORT_POOL_SIZE);
 
     s_active_object.init_task(app::TaskPriorities::ACQUISITION, "acquisition");
     s_port.init(app::PortList::ACQUISITION_PORT, s_active_object);
 
-    if (!hal::ble::initialize())
+    if (hal::ble::BleFactory::get_instance().initialize() != hal::ble::BleError::NO_ERROR)
     {
         return false;
     }
 
-    hal::ble::register_adv_report_callback(on_adv_report);
+    hal::ble::BleFactory::get_instance().register_adv_report_callback(on_adv_report);
 
-    LOG_INF("acquisition service ready, pool depth %u", config::k_adv_report_pool_size);
+    LOG_INF("acquisition service ready, pool depth %u", config::ADV_REPORT_POOL_SIZE);
 
     return true;
 }
@@ -172,11 +172,11 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
     switch (static_cast<Event>(event_id))
     {
     case Event::START_SCAN:
-        (void)hal::ble::start_scan();
+        (void)hal::ble::BleFactory::get_instance().start_scan();
         break;
 
     case Event::STOP_SCAN:
-        (void)hal::ble::stop_scan();
+        (void)hal::ble::BleFactory::get_instance().stop_scan();
         break;
 
     case Event::ADV_REPORT_AVAILABLE:

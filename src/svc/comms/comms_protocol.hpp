@@ -75,7 +75,7 @@ static_assert(sizeof(UplinkHeader) == 12U, "UplinkHeader must stay 12 bytes");
 struct __attribute__((packed)) EndpointRecord
 {
     /// The endpoint's BLE address. Its only identity.
-    uint8_t address[hal::ble::k_address_size];
+    uint8_t address[hal::ble::ADDRESS_SIZE];
 
     /// Signal strength, in dBm, measured by this concentrator.
     int8_t rssi;

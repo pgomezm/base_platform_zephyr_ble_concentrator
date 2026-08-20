@@ -23,7 +23,7 @@ namespace
 {
 
 /// The table itself. Statically allocated, fixed capacity.
-Entry s_entries[config::k_max_devices];
+Entry s_entries[config::MAX_DEVICES];
 
 /// Guards the table.
 ///
@@ -43,7 +43,7 @@ uint16_t s_evicted_count = 0U;
 /// @return true if they are the same address
 bool addresses_match(const uint8_t* p_left, const uint8_t* p_right)
 {
-    return memcmp(p_left, p_right, hal::ble::k_address_size) == 0;
+    return memcmp(p_left, p_right, hal::ble::ADDRESS_SIZE) == 0;
 }
 
 /// Find the entry for an address.
@@ -115,7 +115,7 @@ void initialize()
 
     k_mutex_unlock(&s_mutex);
 
-    LOG_INF("device table ready, capacity %u", config::k_max_devices);
+    LOG_INF("device table ready, capacity %u", config::MAX_DEVICES);
 }
 
 void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
@@ -127,7 +127,7 @@ void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
     if (p_entry == nullptr)
     {
         p_entry = claim_slot();
-        memcpy(p_entry->address, p_address, hal::ble::k_address_size);
+        memcpy(p_entry->address, p_address, hal::ble::ADDRESS_SIZE);
         p_entry->in_use = true;
     }
 
@@ -165,7 +165,7 @@ size_t snapshot(Entry* p_out, size_t max_entries)
         // A device that stopped advertising is not reported: an uplink saying a
         // sensor is present should mean it was heard from recently, not that it
         // was heard from once an hour ago.
-        if ((now_s - entry.last_seen_uptime_s) > config::k_device_stale_after_s)
+        if ((now_s - entry.last_seen_uptime_s) > config::DEVICE_STALE_AFTER_S)
         {
             continue;
         }

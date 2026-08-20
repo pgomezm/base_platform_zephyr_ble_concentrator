@@ -27,16 +27,16 @@ namespace
 {
 
 /// Period of the heartbeat, in milliseconds.
-constexpr uint32_t k_heartbeat_period_ms = 1000U;
+constexpr uint32_t HEARTBEAT_PERIOD_MS = 1000U;
 
 /// Watchdog timeout, in milliseconds.
 ///
 /// Several heartbeat periods, so a single late tick under load does not reset a
 /// healthy device.
-constexpr uint32_t k_watchdog_timeout_ms = 10U * k_heartbeat_period_ms;
+constexpr uint32_t WATCHDOG_TIMEOUT_MS = 10U * HEARTBEAT_PERIOD_MS;
 
 /// How often the health summary is logged, in heartbeats.
-constexpr uint32_t k_health_log_interval = 60U;
+constexpr uint32_t HEALTH_LOG_INTERVAL = 60U;
 
 /// The active object that runs this service.
 eda::ActiveObject s_active_object;
@@ -59,7 +59,7 @@ void on_heartbeat_timer_expired(eda::Timer* p_timer)
 }
 
 /// Fires every heartbeat period.
-eda::Timer s_heartbeat_timer{"heartbeat", k_heartbeat_period_ms, true, &on_heartbeat_timer_expired};
+eda::Timer s_heartbeat_timer{"heartbeat", HEARTBEAT_PERIOD_MS, true, &on_heartbeat_timer_expired};
 
 /// Heartbeats since boot.
 uint32_t s_heartbeat_count = 0U;
@@ -79,7 +79,8 @@ bool initialize()
     s_active_object.init_task(app::TaskPriorities::SYSTEM_DIAGNOSTICS, "diagnostics");
     s_port.init(app::PortList::SYSTEM_DIAGNOSTICS_PORT, s_active_object);
 
-    if (!hal::watchdog::initialize(k_watchdog_timeout_ms))
+    if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS) !=
+        hal::watchdog::WatchdogError::NO_ERROR)
     {
         LOG_WRN("watchdog unavailable, continuing without it");
     }
@@ -105,12 +106,12 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
     case Event::HEARTBEAT_DUE:
         // Fed from here and nowhere else: a watchdog fed by the thread that
         // needs watching proves only that one thread is alive.
-        hal::watchdog::feed();
-        hal::led::toggle(hal::led::Id::HEARTBEAT);
+        (void)hal::watchdog::WatchdogFactory::get_instance().refresh();
+        (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::HEARTBEAT_LED).toggle();
 
         ++s_heartbeat_count;
 
-        if ((s_heartbeat_count % k_health_log_interval) == 0U)
+        if ((s_heartbeat_count % HEALTH_LOG_INTERVAL) == 0U)
         {
             log_health();
         }

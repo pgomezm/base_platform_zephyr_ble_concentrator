@@ -1,12 +1,11 @@
-### Windows
-# Windows thumbnail cache files
-Thumbs.db
+# Build output. west build.dir-fmt puts these under the workspace root, but a
+# stray in-tree build directory should never be committed either.
+build/
+twister-out/
 
-# Folder config file
-[Dd]esktop.ini
+# Python virtualenvs, if one is ever created inside the app folder.
+.venv/
 
-# Recycle Bin used on file shares
-$RECYCLE.BIN/
-
-# Windows shortcuts
-*.lnk
+# Staging area for files that are obsolete but could not be deleted from this
+# machine directly. Nothing here is part of the firmware.
+_to_delete/

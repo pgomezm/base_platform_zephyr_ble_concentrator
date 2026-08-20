@@ -5,6 +5,7 @@
 ///
 /// Source file that implements the startup state.
 
+#include "app/app.hpp"
 #include "app/state_machine/startup/startup.hpp"
 #include "app/state_machine/state_machine.hpp"
 #include "app/port.hpp"
@@ -48,21 +49,21 @@ void StartupState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
     switch (static_cast<Event>(event_id))
     {
     case Event::NETWORK_JOINED:
-        get_state_machine().transition_to(StateId::LISTENING);
+        App::get_instance().get_state_machine().transition_to(StateId::LISTENING);
         break;
 
     case Event::NETWORK_JOIN_FAILED:
         // Recoverable: the network may simply not be reachable yet. The soft
         // error state retries rather than giving up on the first attempt.
         LOG_WRN("network join failed");
-        get_state_machine().transition_to(StateId::SOFT_ERROR);
+        App::get_instance().get_state_machine().transition_to(StateId::SOFT_ERROR);
         break;
 
     case Event::SERVICES_FAILED:
         // A service that will not initialize is not going to start working on
         // its own, so this one does not retry.
         LOG_ERR("a service failed to initialize");
-        get_state_machine().transition_to(StateId::HARD_ERROR);
+        App::get_instance().get_state_machine().transition_to(StateId::HARD_ERROR);
         break;
 
     default:

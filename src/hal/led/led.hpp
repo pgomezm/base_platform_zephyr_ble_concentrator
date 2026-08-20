@@ -5,52 +5,87 @@
 /// @addtogroup grp_hal_led
 /// @{
 ///
-/// @file led.hpp
+/// @file
 ///
-/// Header file that declares the LED HAL interface.
+/// LED HAL header file.
+/// This header file contains the declaration of the LED HAL classes and interfaces.
 
 #pragma once
+
+#include "led_instances.hpp"
+
+#include "hal/gpio/gpio.hpp"
 
 #include <cstdint>
 
 namespace hal::led
 {
 
-/// The LEDs available on the board.
-///
-/// Named by meaning, not by position, so the mapping to a physical LED lives in
-/// one place in the implementation.
-enum class Id : uint8_t
+enum class Error
 {
-    /// Toggled by system_diagnostics to show the firmware is alive.
-    HEARTBEAT,
-
-    /// Lit while an advertising report is being processed.
-    ACTIVITY,
-
-    /// Lit while the device is in an error state.
-    ERROR,
+    OK = 0,
+    ERROR = 1
 };
 
-/// Initialize the LEDs.
-///
-/// @return true if every LED was configured
-bool initialize();
+/// LED class that wraps a GPIO pin
+class Led
+{
+public:
+    /// Constructor
+    ///
+    /// @param gpio Reference to the GPIO instance controlling this LED
+    explicit Led(hal::gpio::IGpio& gpio);
 
-/// Turn an LED on.
-///
-/// @param id which LED
-void set_on(Id id);
+    /// Turn the LED on
+    ///
+    /// @return Error::OK if successful, Error::ERROR otherwise
+    Error turn_on();
 
-/// Turn an LED off.
-///
-/// @param id which LED
-void set_off(Id id);
+    /// Turn the LED off
+    ///
+    /// @return Error::OK if successful, Error::ERROR otherwise
+    Error turn_off();
 
-/// Toggle an LED.
-///
-/// @param id which LED
-void toggle(Id id);
+    /// Toggle the LED state
+    ///
+    /// @return Error::OK if successful, Error::ERROR otherwise
+    Error toggle();
+
+    /// Get the current state of the LED
+    ///
+    /// @return true if LED is on, false if LED is off
+    bool get_state() const;
+
+private:
+    hal::gpio::IGpio& m_gpio;
+    bool m_state;
+};
+
+/// Manager class for LED instances
+class Manager
+{
+public:
+    /// Get the singleton instance of the LED Manager
+    ///
+    /// @return The singleton instance of the LED Manager
+    static Manager& get_instance();
+
+    /// Get an LED instance by its enum value
+    ///
+    /// @param instance The LED instance to get
+    /// @return Reference to the LED instance
+    Led& get_led(LedInstances instance);
+
+private:
+    Manager();
+    ~Manager() = default;
+    Manager(const Manager&) = delete;
+    Manager& operator=(const Manager&) = delete;
+
+    Led m_heartbeat_led;
+    Led m_activity_led;
+    Led m_error_led;
+};
 
 } // namespace hal::led
 
