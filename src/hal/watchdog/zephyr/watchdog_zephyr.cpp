@@ -21,50 +21,96 @@ namespace
 /// The watchdog device from the devicetree.
 const struct device* const s_p_watchdog_device = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
-/// Channel returned when the timeout was installed.
-int s_channel_id = -1;
+class Watchdog : public IWatchdog
+{
+public:
+    Watchdog() : m_channel_id(-1), m_timeout_ms(0U) {}
+
+    WatchdogError set_timeout(uint32_t timeout_ms) override
+    {
+        // Zephyr installs a watchdog timeout once and does not allow it to be
+        // changed afterwards, which is why this reports ALREADY_RUNNING rather
+        // than silently ignoring the second call.
+        if (m_channel_id >= 0)
+        {
+            LOG_WRN("watchdog already running with a %u ms timeout", m_timeout_ms);
+            return WatchdogError::ALREADY_RUNNING;
+        }
+
+        if ((timeout_ms < MIN_TIMEOUT_MS) || (timeout_ms > MAX_TIMEOUT_MS))
+        {
+            LOG_ERR("timeout %u ms is outside [%u, %u]", timeout_ms, MIN_TIMEOUT_MS,
+                    MAX_TIMEOUT_MS);
+            return WatchdogError::INVALID_TIMEOUT;
+        }
+
+        if (!device_is_ready(s_p_watchdog_device))
+        {
+            LOG_ERR("watchdog device not ready");
+            return WatchdogError::HARDWARE_ERROR;
+        }
+
+        struct wdt_timeout_cfg timeout_config = {};
+        timeout_config.flags = WDT_FLAG_RESET_SOC;
+        timeout_config.window.min = 0U;
+        timeout_config.window.max = timeout_ms;
+
+        const int channel_id = wdt_install_timeout(s_p_watchdog_device, &timeout_config);
+
+        if (channel_id < 0)
+        {
+            LOG_ERR("wdt_install_timeout failed (%d)", channel_id);
+            return WatchdogError::HARDWARE_ERROR;
+        }
+
+        const int result = wdt_setup(s_p_watchdog_device, WDT_OPT_PAUSE_HALTED_BY_DBG);
+
+        if (result != 0)
+        {
+            LOG_ERR("wdt_setup failed (%d)", result);
+            return WatchdogError::HARDWARE_ERROR;
+        }
+
+        m_channel_id = channel_id;
+        m_timeout_ms = timeout_ms;
+
+        LOG_INF("watchdog started with a %u ms timeout", timeout_ms);
+
+        return WatchdogError::NO_ERROR;
+    }
+
+    WatchdogError refresh() override
+    {
+        if (m_channel_id < 0)
+        {
+            return WatchdogError::HARDWARE_ERROR;
+        }
+
+        if (wdt_feed(s_p_watchdog_device, m_channel_id) != 0)
+        {
+            return WatchdogError::HARDWARE_ERROR;
+        }
+
+        return WatchdogError::NO_ERROR;
+    }
+
+    uint32_t get_timeout() const override
+    {
+        return m_timeout_ms;
+    }
+
+private:
+    int m_channel_id;
+    uint32_t m_timeout_ms;
+};
 
 } // namespace
 
-bool initialize(uint32_t timeout_ms)
+IWatchdog& WatchdogFactory::get_instance()
 {
-    if (!device_is_ready(s_p_watchdog_device))
-    {
-        LOG_ERR("watchdog device not ready");
-        return false;
-    }
+    static Watchdog instance;
 
-    struct wdt_timeout_cfg timeout_config = {};
-    timeout_config.flags = WDT_FLAG_RESET_SOC;
-    timeout_config.window.min = 0U;
-    timeout_config.window.max = timeout_ms;
-
-    s_channel_id = wdt_install_timeout(s_p_watchdog_device, &timeout_config);
-
-    if (s_channel_id < 0)
-    {
-        LOG_ERR("wdt_install_timeout failed (%d)", s_channel_id);
-        return false;
-    }
-
-    const int result = wdt_setup(s_p_watchdog_device, WDT_OPT_PAUSE_HALTED_BY_DBG);
-
-    if (result != 0)
-    {
-        LOG_ERR("wdt_setup failed (%d)", result);
-        return false;
-    }
-
-    LOG_INF("watchdog started with a %u ms timeout", timeout_ms);
-    return true;
-}
-
-void feed()
-{
-    if (s_channel_id >= 0)
-    {
-        (void)wdt_feed(s_p_watchdog_device, s_channel_id);
-    }
+    return instance;
 }
 
 } // namespace hal::watchdog

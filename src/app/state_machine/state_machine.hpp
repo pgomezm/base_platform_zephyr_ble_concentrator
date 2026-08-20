@@ -67,11 +67,6 @@ private:
     StateId m_current_state_id;
 };
 
-/// Get the application state machine.
-///
-/// @return reference to the single instance
-StateMachine& get_state_machine();
-
 } // namespace app
 
 /// @}

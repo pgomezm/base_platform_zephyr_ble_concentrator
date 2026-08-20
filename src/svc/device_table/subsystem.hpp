@@ -51,7 +51,7 @@ struct Reading
 struct Entry
 {
     /// The endpoint's BLE address. Its only identity.
-    uint8_t address[hal::ble::k_address_size];
+    uint8_t address[hal::ble::ADDRESS_SIZE];
 
     /// Signal strength of the last advertisement, in dBm, measured here.
     int8_t rssi;

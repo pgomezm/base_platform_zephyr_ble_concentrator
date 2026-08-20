@@ -7,6 +7,8 @@
 
 #include "app/state_machine/state_machine.hpp"
 
+#include "app/app.hpp"
+
 #include "app/state_machine/dispatching/dispatching.hpp"
 #include "app/state_machine/hard_error/hard_error.hpp"
 #include "app/state_machine/listening/listening.hpp"
@@ -96,7 +98,11 @@ StateId StateMachine::get_current_state_id() const
     return m_current_state_id;
 }
 
-StateMachine& get_state_machine()
+// Defined here rather than in app.cpp because the state machine instance and
+// the state objects that hold a reference to it are owned by this file, and
+// their construction order is the reason they are file statics (see the note on
+// s_state_machine above). App exposes it; this file owns it.
+StateMachine& App::get_state_machine()
 {
     return s_state_machine;
 }

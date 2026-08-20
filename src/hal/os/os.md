@@ -36,22 +36,22 @@ backend here.
 `hal::os` is that seam. `eda/` calls `hal::os::Thread`, `hal::os::Queue`, `hal::os::Timer` and
 `hal::os::register_idle_callback()` and never touches a kernel type directly.
 
-## Two backends exist; one is built
+## One backend today, and what a second one would cost
 
-`hal/os/zephyr/os_zephyr.cpp` is what this firmware actually runs on, and is the only backend
-`CMakeLists.txt` compiles. `hal/os/freertos/os_freertos.cpp` also exists, implementing the same
-interface with `xTaskCreateStatic`, `xQueueCreateStatic` and `xTimerCreateStatic` — proof that the
-seam works for more than one backend, and a ready starting point if this project ever moves back to
-FreeRTOS. It is deliberately left out of the build (see the comment in `CMakeLists.txt` next to the
-Zephyr sources): this project has no FreeRTOS toolchain to compile it against, so its
-`static_assert`s (on `QueueStorage`/`TimerStorage` sizing) and its priority-inversion constant
-(`k_priority_floor`) are unverified. Whoever wires this project up for FreeRTOS should treat that
-file as a first draft to compile and fix, not as tested code — see the file's own header comment
-for the specific FreeRTOSConfig.h settings and assumptions it depends on.
+`hal/os/zephyr/os_zephyr.cpp` is the only backend, and the only one
+`CMakeLists.txt` compiles. A FreeRTOS backend was written and then removed: it
+could not be compiled here (this project has no FreeRTOS toolchain), so its
+`static_assert`s and its priority-inversion constant were unverifiable, and
+sizing `QueueStorage`/`TimerStorage` to fit both backends cost 320 B of RAM for
+a backend nothing ran. Unverifiable code that costs real RAM is worse than no
+code.
 
-Adding a third backend (or any other module gaining a `zephyr/`+`freertos/` split, e.g. a
-hypothetical `hal/system/freertos/`) follows the same shape: implement the interface header,
-nothing above it changes.
+The seam itself stays, because `eda/` needs *some* kernel wrapper either way and
+this one is a single header. Adding a backend later means writing
+`hal/os/<rtos>/os_<rtos>.cpp` against `os.hpp` and listing it in
+`CMakeLists.txt` instead of the Zephyr one; nothing above `hal/os` changes.
+That is the whole claim this module makes, and it is worth no more than one
+file.
 
 ## The idle hook is an approximation, not a real one
 

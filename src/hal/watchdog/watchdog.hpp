@@ -5,9 +5,10 @@
 /// @addtogroup grp_hal_watchdog
 /// @{
 ///
-/// @file watchdog.hpp
+/// @file
 ///
-/// Header file that declares the watchdog HAL interface.
+/// Watchdog HAL header file.
+/// This header file contains the declaration of the Watchdog HAL classes and interfaces.
 
 #pragma once
 
@@ -16,18 +17,65 @@
 namespace hal::watchdog
 {
 
-/// Initialize and start the watchdog.
-///
-/// @param timeout_ms time without a feed that triggers a reset
-/// @return true if the watchdog started
-bool initialize(uint32_t timeout_ms);
+/// Enum representing possible watchdog errors
+enum class WatchdogError : uint32_t
+{
+    /// Indicates that the operation was successful
+    NO_ERROR,
 
-/// Feed the watchdog.
-///
-/// Called from system_diagnostics only. A module that feeds the watchdog from
-/// its own thread defeats the point: the watchdog would then prove that one
-/// thread is alive, not that the firmware is.
-void feed();
+    /// Indicates a general hardware failure
+    HARDWARE_ERROR,
+
+    /// Indicates invalid timeout parameter
+    INVALID_TIMEOUT,
+
+    /// Indicates watchdog is already running (cannot reinitialize)
+    ALREADY_RUNNING,
+};
+
+/// Interface for Watchdog operations
+class IWatchdog
+{
+public:
+    /// Minimum supported timeout in milliseconds
+    static constexpr uint32_t MIN_TIMEOUT_MS = 500;
+
+    /// Maximum supported timeout in milliseconds
+    static constexpr uint32_t MAX_TIMEOUT_MS = 32000;
+
+    /// Set/update the watchdog timeout period
+    ///
+    /// @param timeout_ms Timeout period in milliseconds
+    /// @return WatchdogError indicating success or failure
+    virtual WatchdogError set_timeout(uint32_t timeout_ms) = 0;
+
+    /// Refresh the watchdog counter (feed the dog)
+    ///
+    /// Called from svc::system_diagnostics only. A module that refreshes the
+    /// watchdog from its own thread defeats the point: the watchdog would then
+    /// prove that one thread is alive, not that the firmware is.
+    ///
+    /// @return WatchdogError indicating success or failure
+    virtual WatchdogError refresh() = 0;
+
+    /// Get current configured timeout in milliseconds
+    ///
+    /// @return Timeout in milliseconds
+    virtual uint32_t get_timeout() const = 0;
+
+    /// Virtual destructor
+    virtual ~IWatchdog() = default;
+};
+
+/// Factory class for Watchdog management
+class WatchdogFactory
+{
+public:
+    /// Get the singleton instance of the Watchdog
+    ///
+    /// @return Reference to the Watchdog instance
+    static IWatchdog& get_instance();
+};
 
 } // namespace hal::watchdog
 

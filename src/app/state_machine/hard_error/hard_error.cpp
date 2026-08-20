@@ -30,7 +30,7 @@ void HardErrorState::entry()
 {
     LOG_ERR("hard error: the device has stopped operating");
 
-    hal::led::set_on(hal::led::Id::ERROR);
+    (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::ERROR_LED).turn_on();
 
     // Stop radiating. A device that cannot deliver what it collects should not
     // keep a receiver running and should not keep transmitting.
@@ -47,7 +47,7 @@ void HardErrorState::entry()
 
 void HardErrorState::exit()
 {
-    hal::led::set_off(hal::led::Id::ERROR);
+    (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::ERROR_LED).turn_off();
 }
 
 void HardErrorState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)

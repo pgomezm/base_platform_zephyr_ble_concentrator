@@ -5,6 +5,7 @@
 ///
 /// Source file that implements the dispatching state.
 
+#include "app/app.hpp"
 #include "app/state_machine/dispatching/dispatching.hpp"
 #include "app/state_machine/state_machine.hpp"
 #include "app/port.hpp"
@@ -40,15 +41,15 @@ void DispatchingState::dispatch_event(uint32_t event_id, uint32_t opt_data_addre
     switch (static_cast<Event>(event_id))
     {
     case Event::DISPATCH_FINISHED:
-        get_state_machine().transition_to(StateId::LISTENING);
+        App::get_instance().get_state_machine().transition_to(StateId::LISTENING);
         break;
 
     case Event::SOFT_ERROR:
-        get_state_machine().transition_to(StateId::SOFT_ERROR);
+        App::get_instance().get_state_machine().transition_to(StateId::SOFT_ERROR);
         break;
 
     case Event::HARD_ERROR:
-        get_state_machine().transition_to(StateId::HARD_ERROR);
+        App::get_instance().get_state_machine().transition_to(StateId::HARD_ERROR);
         break;
 
     default:

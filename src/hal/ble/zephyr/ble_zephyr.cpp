@@ -57,7 +57,7 @@ void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
     report.rssi = rssi;
 
     const size_t length =
-        (p_buffer->len > k_max_adv_data_size) ? k_max_adv_data_size : p_buffer->len;
+        (p_buffer->len > MAX_ADV_DATA_SIZE) ? MAX_ADV_DATA_SIZE : p_buffer->len;
 
     report.data_length = static_cast<uint8_t>(length);
     memcpy(report.data, p_buffer->data, length);
@@ -65,80 +65,106 @@ void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
     s_adv_report_callback(report);
 }
 
+class Ble : public IBle
+{
+public:
+    Ble() : m_is_initialized(false) {}
+
+    BleError initialize() override
+    {
+        if (m_is_initialized)
+        {
+            return BleError::ALREADY_RUNNING;
+        }
+
+        const int result = bt_enable(nullptr);
+
+        if (result != 0)
+        {
+            LOG_ERR("bt_enable failed (%d)", result);
+            return BleError::HARDWARE_ERROR;
+        }
+
+        m_is_initialized = true;
+        LOG_INF("BLE subsystem ready");
+
+        return BleError::NO_ERROR;
+    }
+
+    void register_adv_report_callback(AdvReportCallback callback) override
+    {
+        // Kept in a file static rather than a member because Zephyr's scan
+        // callback is a plain function pointer with no user-data slot, so
+        // scan_callback() above has no way to reach an instance.
+        s_adv_report_callback = callback;
+    }
+
+    BleError start_scan() override
+    {
+        if (s_is_scanning)
+        {
+            return BleError::NO_ERROR;
+        }
+
+        // Passive: the concentrator only listens. It never sends a scan
+        // request, so it never transmits while collecting.
+        struct bt_le_scan_param scan_parameters = {};
+        scan_parameters.type = BT_LE_SCAN_TYPE_PASSIVE;
+        scan_parameters.options = BT_LE_SCAN_OPT_NONE;
+        scan_parameters.interval = BT_GAP_SCAN_FAST_INTERVAL;
+        scan_parameters.window = BT_GAP_SCAN_FAST_WINDOW;
+
+        const int result = bt_le_scan_start(&scan_parameters, scan_callback);
+
+        if (result != 0)
+        {
+            LOG_ERR("bt_le_scan_start failed (%d)", result);
+            return BleError::HARDWARE_ERROR;
+        }
+
+        s_is_scanning = true;
+        LOG_INF("passive scan started");
+
+        return BleError::NO_ERROR;
+    }
+
+    BleError stop_scan() override
+    {
+        if (!s_is_scanning)
+        {
+            return BleError::NO_ERROR;
+        }
+
+        const int result = bt_le_scan_stop();
+
+        if (result != 0)
+        {
+            LOG_ERR("bt_le_scan_stop failed (%d)", result);
+            return BleError::HARDWARE_ERROR;
+        }
+
+        s_is_scanning = false;
+        LOG_INF("passive scan stopped");
+
+        return BleError::NO_ERROR;
+    }
+
+    bool is_scanning() const override
+    {
+        return s_is_scanning;
+    }
+
+private:
+    bool m_is_initialized;
+};
+
 } // namespace
 
-bool initialize()
+IBle& BleFactory::get_instance()
 {
-    const int result = bt_enable(nullptr);
+    static Ble instance;
 
-    if (result != 0)
-    {
-        LOG_ERR("bt_enable failed (%d)", result);
-        return false;
-    }
-
-    LOG_INF("BLE subsystem ready");
-    return true;
-}
-
-void register_adv_report_callback(AdvReportCallback callback)
-{
-    s_adv_report_callback = callback;
-}
-
-bool start_scan()
-{
-    if (s_is_scanning)
-    {
-        return true;
-    }
-
-    // Passive: the concentrator only listens. It never sends a scan request,
-    // so it never transmits while collecting.
-    struct bt_le_scan_param scan_parameters = {};
-    scan_parameters.type = BT_LE_SCAN_TYPE_PASSIVE;
-    scan_parameters.options = BT_LE_SCAN_OPT_NONE;
-    scan_parameters.interval = BT_GAP_SCAN_FAST_INTERVAL;
-    scan_parameters.window = BT_GAP_SCAN_FAST_WINDOW;
-
-    const int result = bt_le_scan_start(&scan_parameters, scan_callback);
-
-    if (result != 0)
-    {
-        LOG_ERR("bt_le_scan_start failed (%d)", result);
-        return false;
-    }
-
-    s_is_scanning = true;
-    LOG_INF("passive scan started");
-
-    return true;
-}
-
-bool stop_scan()
-{
-    if (!s_is_scanning)
-    {
-        return true;
-    }
-
-    const int result = bt_le_scan_stop();
-
-    if (result != 0)
-    {
-        LOG_ERR("bt_le_scan_stop failed (%d)", result);
-        return false;
-    }
-
-    s_is_scanning = false;
-    LOG_INF("passive scan stopped");
-
-    return true;
-}
-
-bool is_scanning()
-{
-    return s_is_scanning;
+    return instance;
 }
 
 } // namespace hal::ble

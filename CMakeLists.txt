@@ -7,6 +7,16 @@ project(base_platform_zephyr_ble_concentrator LANGUAGES C CXX)
 # and so on, so every include path is readable as a layer plus a module.
 target_include_directories(app PRIVATE src)
 
+# Function-local statics (every get_instance() in this firmware) make GCC emit
+# calls to __cxa_guard_acquire/__cxa_guard_release, the thread-safe-init guards.
+# Those live in libstdc++, which this build deliberately does not link
+# (CONFIG_REQUIRES_FULL_LIBCPP=n in prj.conf), so the link fails on them.
+#
+# Dropping the guards is safe here because it is not left to chance:
+# app::App::initialize() constructs every HAL singleton explicitly, before it
+# creates the first thread. Read that function before adding a new singleton.
+target_compile_options(app PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-threadsafe-statics>)
+
 # Sources are listed rather than globbed: a file that is added but not built is
 # a mistake worth catching at review time, not at link time.
 target_sources(app PRIVATE
@@ -30,19 +40,12 @@ target_sources(app PRIVATE
     src/eda/timer/timer.cpp
 
     # Hardware abstraction layer
-    #
-    # src/hal/os/ has two backends: zephyr/ (built below, what this firmware
-    # actually runs on) and freertos/ (not listed here on purpose — this
-    # project targets Zephyr; the FreeRTOS backend exists as a ready seam for
-    # a future move back to FreeRTOS, and has never been compiled since this
-    # build has no FreeRTOS toolchain to compile it against). Do not add
-    # src/hal/os/freertos/os_freertos.cpp here without also switching every
-    # other Zephyr-specific source below off.
     src/hal/ble/zephyr/ble_zephyr.cpp
+    src/hal/gpio/zephyr/gpio_zephyr.cpp
+    src/hal/led/led.cpp
     src/hal/lora/zephyr/lora_zephyr.cpp
     src/hal/os/zephyr/os_zephyr.cpp
     src/hal/system/zephyr/system_zephyr.cpp
-    src/hal/led/zephyr/led_zephyr.cpp
     src/hal/watchdog/zephyr/watchdog_zephyr.cpp
 
     # Services

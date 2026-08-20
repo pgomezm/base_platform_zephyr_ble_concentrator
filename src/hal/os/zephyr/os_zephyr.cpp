@@ -21,13 +21,13 @@ namespace
 /// How many `Thread`s this firmware creates: one active object per module
 /// (app, acquisition, comms, system_diagnostics), with headroom. Bump this if
 /// another active object is added.
-constexpr size_t k_max_threads = 8U;
+constexpr size_t MAX_THREADS = 8U;
 
 /// The stack pool every Thread::create() draws from, one entry per thread.
 /// `K_THREAD_STACK_ARRAY_DEFINE` is the one place in this file that could not
 /// be expressed as a plain aligned byte array: it also reserves Zephyr's
 /// MPU stack-guard region, which a hand-rolled buffer would silently omit.
-K_THREAD_STACK_ARRAY_DEFINE(s_stack_pool, k_max_threads, Thread::k_stack_size);
+K_THREAD_STACK_ARRAY_DEFINE(s_stack_pool, MAX_THREADS, Thread::STACK_SIZE);
 
 /// Index of the next free stack in the pool.
 size_t s_next_stack_index = 0U;
@@ -96,10 +96,10 @@ void Thread::create(ThreadEntry entry, void* p_arg, Priority priority, const cha
 {
     auto* const p_thread_data = reinterpret_cast<struct k_thread*>(m_storage.bytes);
 
-    if (s_next_stack_index >= k_max_threads)
+    if (s_next_stack_index >= MAX_THREADS)
     {
         // Every caller in this firmware is known at link time (see
-        // k_max_threads above), so this can only mean the pool constant fell
+        // MAX_THREADS above), so this can only mean the pool constant fell
         // out of sync with the number of active objects created.
         LOG_MODULE_ERR("hal::os thread stack pool exhausted");
         return;
