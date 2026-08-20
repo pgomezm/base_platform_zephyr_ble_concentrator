@@ -14,7 +14,7 @@
 #include "eda/active_object/active_object.hpp"
 #include "eda/port/port.hpp"
 #include "eda/timer/timer.hpp"
-#include "hal/lora/lora.hpp"
+#include "hal/link/link.hpp"
 #include "hal/system/system.hpp"
 #include "svc/acquisition/subsystem.hpp"
 #include "svc/device_table/subsystem.hpp"
@@ -143,9 +143,9 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
         offset += sizeof(record);
     }
 
-    const hal::lora::LoraError result = hal::lora::LoraFactory::get_instance().send(s_fragment_buffer, offset);
+    const hal::link::LinkError result = hal::link::LinkFactory::get_instance().send(s_fragment_buffer, offset);
 
-    if (result != hal::lora::LoraError::NO_ERROR)
+    if (result != hal::link::LinkError::NO_ERROR)
     {
         LOG_ERR("fragment %u/%u failed to send", fragment_index + 1U, fragment_count);
         return false;
@@ -160,13 +160,13 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 /// Build and send the uplink for this dispatch cycle.
 void dispatch()
 {
-    if (!hal::lora::LoraFactory::get_instance().is_joined())
+    if (!hal::link::LinkFactory::get_instance().is_connected())
     {
         LOG_WRN("dispatch skipped: not joined to a network");
         return;
     }
 
-    const uint8_t max_payload = hal::lora::LoraFactory::get_instance().get_max_payload_size();
+    const uint8_t max_payload = hal::link::LinkFactory::get_instance().get_max_payload_size();
 
     // The data rate can leave less room than one record needs. Fragmenting into
     // pieces the radio will refuse would loop forever, so this is a wait, not a
@@ -241,7 +241,7 @@ bool initialize()
     s_active_object.init_task(app::TaskPriorities::COMMS, "comms");
     s_port.init(app::PortList::COMMS_PORT, s_active_object);
 
-    if (hal::lora::LoraFactory::get_instance().initialize() != hal::lora::LoraError::NO_ERROR)
+    if (hal::link::LinkFactory::get_instance().initialize() != hal::link::LinkError::NO_ERROR)
     {
         return false;
     }
@@ -273,7 +273,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
     switch (static_cast<Event>(event_id))
     {
     case Event::JOIN_NETWORK:
-        (void)hal::lora::LoraFactory::get_instance().join();
+        (void)hal::link::LinkFactory::get_instance().connect();
         break;
 
     case Event::DISPATCH_DUE:

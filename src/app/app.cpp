@@ -14,7 +14,7 @@
 #include "hal/ble/ble.hpp"
 #include "hal/gpio/gpio.hpp"
 #include "hal/led/led.hpp"
-#include "hal/lora/lora.hpp"
+#include "hal/link/link.hpp"
 #include "hal/os/os.hpp"
 #include "hal/watchdog/watchdog.hpp"
 #include "svc/acquisition/subsystem.hpp"
@@ -57,7 +57,7 @@ void App::initialize()
     (void)hal::gpio::ManagerFactory::get_instance();
     (void)hal::led::Manager::get_instance();
     (void)hal::ble::BleFactory::get_instance();
-    (void)hal::lora::LoraFactory::get_instance();
+    (void)hal::link::LinkFactory::get_instance();
     (void)hal::watchdog::WatchdogFactory::get_instance();
 
     // The application's own thread and port come up before any service, so a

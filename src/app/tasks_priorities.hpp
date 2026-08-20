@@ -30,7 +30,7 @@ enum class TaskPriorities : int
     /// BLE scan report parsing. Highest of ours, drains the report pool.
     ACQUISITION = 3,
 
-    /// Uplink dispatch: build, fragment, send over LoRa.
+    /// Uplink dispatch: build, fragment, hand to the link.
     COMMS = 4,
 
     /// Application state machine.

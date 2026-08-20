@@ -20,7 +20,7 @@ enum class Event : uint32_t
     /// Invalid, never posted.
     INVALID,
 
-    /// Join the LoRaWAN network.
+    /// Connect the uplink transport to its network.
     JOIN_NETWORK,
 
     /// The dispatch period elapsed: build and send an uplink.

@@ -14,7 +14,8 @@
 namespace app
 {
 
-/// How long to wait for the LoRa join to succeed before declaring a soft error,
+/// How long to wait for the uplink transport to connect before declaring a soft
+/// error,
 /// in milliseconds.
 constexpr uint32_t JOIN_TIMEOUT_MS = 60U * 1000U;
 
