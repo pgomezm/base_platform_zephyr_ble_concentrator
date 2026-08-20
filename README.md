@@ -1,10 +1,11 @@
 # base_platform_zephyr_ble_concentrator
 
-BLE to LoRa concentrator firmware. It listens for `base_platform_baremetal_ble` sensor endpoints
+BLE concentrator firmware. It listens for `base_platform_baremetal_ble` sensor endpoints
 advertising in a room, keeps the last reading from each of them, and every 15 minutes sends
-everything it collected over LoRaWAN.
+everything it collected upstream.
 
-Runs on a Nordic nRF52840 DK with a Modtronix inAir9 (SX1276) radio on the Arduino header.
+It ships in two variants that differ only in how those readings leave the device — LoRaWAN or TCP —
+and both run on the same Nordic nRF52840 DK. See "The two variants" below.
 
 `docs/ARCHITECTURE.md` is the design document. This README covers building and running.
 
@@ -16,10 +17,11 @@ what it owns and what it is not allowed to do.
 
 ```
 src/
-├── main.cpp                    entry point, calls app::initialize() and nothing else
+├── main.cpp                    hands control to app::App and does nothing else
 ├── config.hpp                  every Kconfig value, in one place
 ├── app/                        high-level logic and the device state machine
-│   ├── app.cpp/.hpp
+│   ├── app.cpp/.hpp            the App singleton: initialize(), run()
+│   ├── app_config.hpp          timeouts and retry limits
 │   ├── port.cpp/.hpp           application events
 │   ├── port_list.hpp           every port in the firmware
 │   ├── tasks_priorities.hpp    thread priorities, and why they are in that order
@@ -31,15 +33,18 @@ src/
 │       └── hard_error/         unrecoverable, stops radiating
 ├── eda/                        event driven architecture
 │   ├── active_object/          one thread plus one static event queue
+│   ├── idle_hook/              callback registry for idle time
 │   ├── port/                   how a module is addressed
 │   ├── state_machine/          flat state machine
 │   └── timer/                  posts an event on expiry
 ├── hal/                        hardware abstraction
-│   ├── ble/     ble.hpp     + zephyr/ble_zephyr.cpp
-│   ├── lora/    lora.hpp    + zephyr/lora_zephyr.cpp
-│   ├── system/  system.hpp  + zephyr/system_zephyr.cpp
-│   ├── led/     led.hpp     + zephyr/led_zephyr.cpp
-│   └── watchdog/watchdog.hpp+ zephyr/watchdog_zephyr.cpp
+│   ├── ble/       IBle       + BleFactory      + zephyr/
+│   ├── gpio/      IGpio      + ManagerFactory  + zephyr/
+│   ├── led/       Led        + Manager         (no platform code: goes through IGpio)
+│   ├── link/      ILink      + LinkFactory     + lora/ and tcp/, one compiled
+│   ├── os/        Thread/Queue/Timer            + zephyr/
+│   ├── system/    free functions                + zephyr/
+│   └── watchdog/  IWatchdog  + WatchdogFactory + zephyr/
 ├── svc/                        services
 │   ├── acquisition/            scan lifecycle and Eddystone parsing
 │   ├── device_table/           last reading per device, keyed by BLE address
@@ -54,16 +59,21 @@ src/
 report into a static pool and posts one event. Parsing happens later, in the acquisition thread.
 Anything that delays Zephyr's Bluetooth thread costs advertising reports.
 
-**`hal::lora::send()` has exactly one caller, `svc::comms`.** Two contexts writing to the same SPI
-radio corrupt each other quietly rather than failing loudly, so this is the constraint most worth
-respecting. `svc::system_diagnostics` reads radio status and never transmits.
+**`hal::link::send()` has exactly one caller, `svc::comms`.** Two contexts writing to the same SPI
+peripheral corrupt each other quietly rather than failing loudly, so this is the constraint most
+worth respecting. `svc::system_diagnostics` reads link status and never transmits.
 
 Both are explained in `docs/ARCHITECTURE.md` section 4, and each module's `.md` restates the part
 that applies to it.
 
 ## Hardware
 
-Modtronix inAir9, the plain one with the RFO output. The inAir9B is the +20 dBm variant and needs
+Both variants are the same nRF52840 DK with a different module on the same four SPI pins, so only
+one can be plugged in at a time.
+
+### LoRa variant: Modtronix inAir9 (SX1276)
+
+The plain one with the RFO output. The inAir9B is the +20 dBm variant and needs
 `power-amplifier-output = "pa-boost"` in the overlay instead: setting that wrong still builds, it
 just transmits into the wrong output stage.
 
@@ -86,6 +96,27 @@ taken from a datasheet.
 
 `boards/nrf52840dk_nrf52840.overlay` explains why those indices are what they are. Read it before
 wiring: the header index in devicetree is not the D number.
+
+### TCP variant: Wiznet W5500
+
+Same SPI pins, plus an interrupt and a reset line.
+
+| W5500 | DK header | nRF52840 pin |
+| --- | --- | --- |
+| MISO | D12 | P1.14 |
+| MOSI | D11 | P1.13 |
+| SCLK | D13 | P1.15 |
+| SCS | D10 | P1.12 |
+| INT | D2 | P1.03 |
+| RSTn | D9 | P1.11 |
+| 3V3 | 3V3 | |
+| GND | GND | |
+
+**These have not been verified against a generated devicetree**, unlike the inAir9 ones above: no
+W5500 has been wired up yet. Check `build/zephyr/zephyr.dts` before trusting them. A header index
+that shifts does not fail the build, it produces a controller that never answers.
+
+`snippets/eth-w5500/w5500.overlay` is where they live.
 
 ## Build
 
@@ -114,12 +145,17 @@ Keep the path short. Zephyr builds still hit Windows' `MAX_PATH` limit, and a de
 produces link errors that name a file rather than the real cause.
 
 ```
-D:\zws\
-├── .west\           created by west init
-├── app_project\     this repo
-├── zephyr\          fetched by west update, ~1.5 GB
-└── modules\         fetched by west update
+D:\ZephyrWS\
+├── .west\                                  created by west init
+├── base_platform_zephyr_ble_concentrator\  this repo, and the manifest
+├── zephyr\                                 fetched by west update
+└── modules\                                fetched by west update
 ```
+
+`west.yml` uses `import: name-allowlist:` rather than a bare `import: true`, so `west update`
+fetches twelve modules instead of every vendor HAL Zephyr knows about. That is the difference
+between a 5 GB workspace and a 9 GB one. Adding a board from a new vendor means adding its HAL to
+that list.
 
 ### One-time setup (Windows)
 
@@ -132,18 +168,22 @@ winget install Kitware.CMake Ninja-build.Ninja oss-winget.gperf oss-winget.dtc G
 Workspace and west:
 
 ```powershell
-mkdir D:\zws
-cd D:\zws
+mkdir D:\ZephyrWS
+cd D:\ZephyrWS
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install west
 
-git clone https://github.com/pgomezm/base_platform_zephyr_ble_concentrator.git app_project
-west init -l app_project
+git clone https://github.com/pgomezm/base_platform_zephyr_ble_concentrator.git
+west init -l base_platform_zephyr_ble_concentrator
 west update                       # fetches Zephyr and its modules, slow the first time
 west zephyr-export
 pip install -r zephyr\scripts\requirements.txt
+west config build.dir-fmt "build/{board}/{app}"
 ```
+
+That last line gives each board-and-application pair its own build directory, so switching between
+the two variants does not silently reuse the other one's CMake cache.
 
 `west update` pulls in Zephyr's own module list, which is where `loramac-node` — the stack behind
 `CONFIG_LORAWAN` — comes from.
@@ -160,14 +200,15 @@ west sdk install -t arm-zephyr-eabi
 Same shape, and this is the combination the numbers above were measured on:
 
 ```sh
-mkdir zws && cd zws
+mkdir ZephyrWS && cd ZephyrWS
 python3 -m venv .venv && source .venv/bin/activate
 pip install west
-git clone https://github.com/pgomezm/base_platform_zephyr_ble_concentrator.git app_project
-west init -l app_project
+git clone https://github.com/pgomezm/base_platform_zephyr_ble_concentrator.git
+west init -l base_platform_zephyr_ble_concentrator
 west update && west zephyr-export
 pip install -r zephyr/scripts/requirements.txt
 west sdk install -t arm-zephyr-eabi
+west config build.dir-fmt "build/{board}/{app}"
 ```
 
 Also needed on the host: `cmake >= 3.20`, `ninja`, `gperf`, `dtc` (device-tree-compiler).
@@ -195,14 +236,14 @@ uplinks go is a `prj.conf` line or a `menuconfig` field, never a source edit.
 From the workspace root, with the venv active:
 
 ```
-west build -b nrf52840dk/nrf52840 app_project --pristine
+west build -b nrf52840dk/nrf52840 base_platform_zephyr_ble_concentrator --pristine
 west flash
 ```
 
 The TCP variant, which builds with no Ethernet hardware present:
 
 ```
-west build -b nrf52840dk/nrf52840 app_project --pristine -S eth-w5500 -- -DCONFIG_APP_LINK_TCP=y
+west build -b nrf52840dk/nrf52840 base_platform_zephyr_ble_concentrator --pristine -S eth-w5500 -- -DCONFIG_APP_LINK_TCP=y
 ```
 
 Keeping that build green from the start is what stops the TCP path from rotting
@@ -226,7 +267,7 @@ J-Link software installed and on `PATH`.
 ```
 west build                                                 # incremental
 west build -t menuconfig                                   # inspect the resulting Kconfig
-west build -b nrf52840dk/nrf52840 app_project -p always     # force clean
+west build -b nrf52840dk/nrf52840 base_platform_zephyr_ble_concentrator -p always     # force clean
 ```
 
 ### One backend per seam, chosen at build time
@@ -257,16 +298,25 @@ reports dropped and devices evicted.
 
 ## What does not work yet
 
-**The LoRaWAN join is not implemented.** `hal::lora::join()` logs a warning and returns
-`JOIN_ERROR`, because whether this device uses OTAA or ABP, and against which network server, has
-not been decided. It fails deliberately rather than pretending to succeed, so the state machine
-takes its error path instead of the firmware believing it is connected.
+**Neither transport carries data yet.** The BLE half — passive scan, Eddystone parsing, the device
+table, the state machine, the watchdog, the LEDs — is fully exercised. Everything downstream of
+`hal::link` is not.
 
-The consequence when you flash this today: it comes up, scans, collects readings into the device
-table, and then cycles through `STARTUP` to `SOFT_ERROR` because it cannot join. The BLE half is
-fully exercised; the LoRa half stops at the join.
+**LoRaWAN: the join is not implemented.** `connect()` logs a warning and returns `CONNECT_ERROR`,
+because whether this device uses OTAA or ABP, and against which network server, has not been
+decided. It fails deliberately rather than pretending to succeed, so the state machine takes its
+error path instead of the firmware believing it is connected.
 
-Filling this in is a contained change in `hal/lora/zephyr/lora_zephyr.cpp` plus the credentials.
-Nothing above that layer is affected.
+Filling it in is a contained change in `src/hal/link/lora/link_lora.cpp` plus the credentials. Note
+that Zephyr's stack does **not** retry a failed join: `lorawan_join()` attempts once and returns an
+errno, so retrying stays this firmware's job — which is what the `SOFT_ERROR` path already does.
+
+**TCP: never run against hardware.** It compiles in both the static-address and DHCP
+configurations, and no W5500 has been connected to check that it works. Downlink reception is
+accepted but never delivered: that would need a reader thread, and framing over a stream is
+undecided.
+
+The consequence when you flash either variant today: it comes up, scans, collects readings into the
+device table, and then cycles through `STARTUP` to `SOFT_ERROR` when it tries to dispatch.
 
 Open items are listed in `docs/ARCHITECTURE.md` section 9.

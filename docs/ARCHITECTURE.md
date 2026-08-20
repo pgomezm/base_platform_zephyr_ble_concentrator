@@ -15,8 +15,10 @@ v5 rewrites `src/eda` to match `deepsight-polaris-software`'s `src/eda` millimet
 this project's earlier Zephyr port previously did not), and introduces `hal/os` beneath it: a seam
 that wraps every kernel primitive `eda/` uses (thread, queue, timer, idle callback) so `eda/` never
 includes a kernel header directly. `eda/` and everything above it is now written against `hal::os`,
-not against Zephyr, which is what makes a future move back to FreeRTOS a new `hal/os/freertos/`
-backend instead of a rewrite of `eda/`. See §7's new `eda` / `hal/os` entry and
+not against Zephyr, which is what would make a move to another RTOS a new `hal/os/<rtos>/` backend
+instead of a rewrite of `eda/`. A FreeRTOS backend was written to prove that and then removed: it
+could not be compiled here, so its assertions were unverifiable, and sizing the shared storage for
+it cost 320 B of RAM that nothing used. The seam stays; the speculative implementation does not. See §7's new `eda` / `hal/os` entry and
 `src/eda/eda.md` / `src/hal/os/os.md` for the full rationale and the deviations from the polaris
 reference (documented, not silent — same rule as §4.1's overflow counters).
 
@@ -67,18 +69,27 @@ typedef struct __attribute__((packed)) {
 No device-ID field — identity is the BLE advertiser MAC address, which `device_table` uses as the
 key. `acquisition`'s parser targets this struct directly.
 
-## 3. Board: standalone nRF52840 DevKit
+## 3. Board: standalone nRF52840 DevKit, two variants
 
-Native BLE radio handles scanning. LoRa needs an external SX126x (or SX127x) module wired over SPI
-— devicetree overlay describes the radio's SPI bus, `busy`/`reset`/`dio1` GPIOs, and TCXO if the
-module has one. Zephyr's `CONFIG_LORA`/`CONFIG_LORAWAN` subsystem drives it from there; `hal/lora`
-wraps that subsystem so `svc/comms` never touches Zephyr's API directly.
+The native BLE radio handles scanning in both variants. What differs is the module on the SPI
+header, and therefore how collected readings leave the device.
 
-⚠️ Open, not blocking: which specific SX126x/SX127x breakout you're wiring up — the devicetree
-overlay's SPI/GPIO pin assignment depends on it.
+| variant | module | transport | selected by |
+| --- | --- | --- | --- |
+| LoRa | Modtronix inAir9 (SX1276) | LoRaWAN, US915 | `CONFIG_APP_LINK_LORA` (default) |
+| TCP | Wiznet W5500 | TCP to a fixed server | `CONFIG_APP_LINK_TCP` + `-S eth-w5500` |
 
-No Ethernet backend in this build. `svc/comms` keeps a small internal seam for "how to send a
-built packet" (so a second backend isn't a rewrite later), but only implements the LoRa path.
+They are mutually exclusive: both use the same four SPI pins, so the `eth-w5500` snippet deletes
+the SX1276 node and the `lora0` alias that points at it.
+
+Choosing the transport at build time rather than forking the repository is the whole reason
+`hal/link` is named after the *role* and not after LoRa. Everything above it — `eda/`, the state
+machine, `acquisition`, `device_table`, `comms`, `hal/ble` — is identical in both, so a fix lands
+in one place.
+
+Boards with Ethernet but no BLE radio (Nucleo F429ZI, H743ZI2) were evaluated and dropped: giving
+them BLE needs an external HCI controller, whereas staying on the nRF52840 DK makes BLE a
+non-problem in both variants.
 
 ## 4. Execution contexts and concurrency discipline
 
@@ -88,7 +99,7 @@ built packet" (so a second backend isn't a rewrite later), but only implements t
 | --- | --- |
 | Zephyr BT scan callback | On each advertising report: check it's a BLE legacy ADV under our `company_id` filter, copy the raw payload + RSSI + advertiser address into a static pool slot, enqueue to `acquisition`'s queue. **Never parses the Eddystone frame here, never touches `device_table` directly.** |
 | `acquisition` thread | Dequeues raw reports, parses `SvcEddystoneCustomFrame`, calls `device_table`'s upsert. The only thread that writes into `device_table`. |
-| `comms` thread | Wakes every `DISPATCH_PERIOD_MIN`. Reads a `device_table` snapshot, builds and fragments packets, is the **only** caller of `hal/lora`'s send — single writer to the radio. |
+| `comms` thread | Wakes every `DISPATCH_PERIOD_MIN`. Reads a `device_table` snapshot, builds and fragments packets, is the **only** caller of `hal/link`'s send — single writer to the radio. |
 | `system_diagnostics` thread | Heartbeat / battery / link-health checks. Lowest-priority protocol thread. |
 | Zephyr log backend | Below everything else — logs never compete with scanning or the dispatch path. |
 
@@ -97,7 +108,7 @@ Two rules, taken directly from the nRF54LM20 doc's reasoning and just as true he
 - **Nothing of ours may run at a priority that could delay Zephyr's own BT stack thread.** All of
   our threads sit below it. This is what keeps a slow `acquisition` parse from ever causing a
   missed advertisement.
-- **`hal/lora`'s send function is called from exactly one place: `svc/comms`.** No other module —
+- **`hal/link`'s send function is called from exactly one place: `svc/comms`.** No other module —
   not a future debug command, not `system_diagnostics` — calls it directly. One writer means no
   interleaved access to the radio's SPI bus and no ambiguity about transmit order, the same reason
   the nRF54LM20 design gives every UART write a single owning thread.
@@ -192,14 +203,33 @@ constraint that isn't free to change — replaces the plain description table fr
   Eddystone-specific belongs in `acquisition`, not here — this is what keeps `hal/ble` reusable if
   the frame format ever changes.
 
-### `hal/lora`
+### `hal/link`
 
-- **Owns**: the SX126x/SX127x radio via Zephyr's `CONFIG_LORA`/`CONFIG_LORAWAN` subsystem — join,
-  send, US915 region config.
-- **Exposes**: `join()`, `send(buffer, len)`, region/data-rate query.
-- **Depends on**: Zephyr's `lora.h`/`lorawan.h` only.
-- **Constraint**: `send()` is called from exactly one place — `svc/comms` (§4). No retry/backoff
-  policy lives here; that's `comms`'s job, so `hal/lora` stays a thin wrapper.
+- **Owns**: the uplink transport, whichever one this build compiled.
+- **Exposes**: `ILink` through `LinkFactory::get_instance()` — `initialize()`, `connect()`,
+  `is_connected()`, `send()`, `register_downlink_callback()`, `get_max_payload_size()`.
+- **Depends on**: the platform SDK only.
+- **Backends**: `lora/link_lora.cpp` over Zephyr's `CONFIG_LORAWAN`, and `tcp/link_tcp.cpp` over
+  Zephyr sockets. `CMakeLists.txt` compiles exactly one, and the Kconfig choice also selects the
+  Zephyr subsystem that backend needs — which is why `prj.conf` names neither LoRa nor networking.
+- **Constraint**: `send()` is called from exactly one place — `svc/comms` (§4). No retry or backoff
+  policy lives here; that is `comms`'s job, and the state machine's, so a backend stays a thin
+  wrapper. A failed TCP `send()` drops the socket and reports; it does not reconnect behind
+  anyone's back.
+- **Nothing above this module may name a transport.** `get_max_payload_size()` on TCP reports a
+  limit TCP does not have (the LoRaWAN ceiling, by Kconfig) precisely so `comms` fragments
+  identically on both and there is one fragmentation path to test.
+
+### `hal/gpio`, `hal/led`, `hal/watchdog`
+
+- **`hal/gpio`** owns one `IGpio` per pin the firmware drives, handed out by
+  `ManagerFactory::get_instance()`. Pins are configured once, in the manager's constructor.
+- **`hal/led`** wraps a GPIO as an LED (`turn_on`/`turn_off`/`toggle`), handed out by
+  `Manager::get_instance()`. It has **no platform subdirectory**: every platform-specific line is
+  behind `IGpio`, which is what splitting GPIO out bought.
+- **`hal/watchdog`** exposes `IWatchdog` through `WatchdogFactory::get_instance()`. `refresh()` has
+  exactly one caller, `svc/system_diagnostics`: a module that refreshes from its own thread proves
+  that one thread is alive, not that the firmware is.
 
 ### `acquisition`
 
@@ -223,19 +253,19 @@ constraint that isn't free to change — replaces the plain description table fr
 ### `comms`
 
 - **Owns**: the dispatch scheduler (`DISPATCH_PERIOD_MIN` timer), packet building and
-  US915-airtime fragmentation (§5), and is the sole caller of `hal/lora::send()`.
+  US915-airtime fragmentation (§5), and is the sole caller of `hal::link::send()`.
 - **Exposes**: nothing — it's the top of the chain, triggered only by its own timer.
-- **Depends on**: `device_table`, `hal/lora`.
+- **Depends on**: `device_table`, `hal/link`.
 - **Constraint**: single-writer to the radio (§4) — this is the one constraint in this whole
   design that, if violated, breaks silently (two contexts writing to the same SPI radio) rather
-  than loudly, so it's worth restating: nothing else may call `hal/lora::send()`.
+  than loudly, so it's worth restating: nothing else may call `hal::link::send()`.
 
 ### `system_diagnostics`
 
 - **Owns**: heartbeat and health checks (battery, `dropped_adv_reports`/`evicted_devices` counters
   from §4.1, LoRa join/link health).
 - **Exposes**: the counters `comms` includes in the uplink header (§5).
-- **Depends on**: `device_table` (read-only), `hal/lora` (status query only, never `send()`).
+- **Depends on**: `device_table` (read-only), `hal/link` (status query only, never `send()`).
 
 ### `eda` / `hal/os`
 
@@ -256,9 +286,11 @@ constraint that isn't free to change — replaces the plain description table fr
   `vApplicationIdleHook()`. `hal::os::register_idle_callback()` approximates one with a dedicated,
   lowest-priority thread (see `os_zephyr.cpp`). `eda::IdleHook` exists and is wired up, with no
   callback registered by default.
-- **Second backend**: `hal/os/freertos/os_freertos.cpp` implements the same interface against
-  FreeRTOS and is not part of the build (§9 item 7) — written to prove the seam holds, not yet
-  compiled against a real FreeRTOS toolchain.
+- **One backend, on purpose**: a FreeRTOS implementation of this same interface was written and
+  then deleted. It could not be compiled here, so its `static_assert`s were unverifiable, and
+  sizing `QueueStorage`/`TimerStorage` to fit both backends cost 320 B of RAM for a backend nothing
+  ran. Treat that as the precedent for any "write it now, build it later" proposal: `hal/link`'s
+  TCP backend earns its place because it compiles and is verified on every change.
 
 ## 8. What's deliberately not adopted from the nRF54LM20 doc, and why
 
@@ -281,29 +313,58 @@ decision"):
   (e.g., reconfigure `DISPATCH_PERIOD_MIN` over LoRaWAN), that's a new piece of design, not
   something this section's group-numbering scheme would apply to unmodified.
 
-## 9. Still open (not blocking scaffold)
+## 9. Still open
 
-1. Exact SX126x/SX127x module + pinout for the devicetree overlay (§3).
-2. LoRaWAN join mode (OTAA vs ABP) and which network server (ChirpStack, TTN, private gateway).
-3. Security/encryption beyond LoRaWAN's own AppSKey.
-4. Confirm the US915 payload table in §5 against the actual spec, and decide the DR0 floor
-   behavior.
-5. Confirm the record field list (temperature/humidity/battery/RSSI only, pressure and accel
-   dropped) is actually what's needed downstream.
-6. Whether the boot/reset-visibility idea in §6 is worth the wire-format change.
-7. `hal/os` now has a second backend, `hal/os/freertos/os_freertos.cpp`, deliberately left out of
-   `CMakeLists.txt` — see `src/hal/os/os.md`. It has never been compiled (no FreeRTOS toolchain in
-   this build), so its `static_assert`s on `QueueStorage`/`TimerStorage` sizing and its
-   priority-inversion constant are unverified. Still open: get a FreeRTOS build to actually compile
-   it against, which is the only thing that would prove the abstraction, not just the intent.
-8. `eda::IdleHook` has no callback registered anywhere in this firmware today; it exists because it
-   was asked for, matching `deepsight-polaris-software`. If nothing ever registers one, it's a
-   module carrying its weight for nothing, which is worth revisiting once there's an actual
-   idle-time task (e.g., an LED breathe effect, or entering a lower power state) to hang off it.
+Ordered by what blocks what. Item 1 is the only one standing between this firmware and end-to-end
+operation.
 
-## 10. Next step
+1. **LoRaWAN join mode (OTAA vs ABP) and the network server.** OTAA is the decision on the table:
+   the device has a watchdog and will reboot, and ABP requires the frame counter to survive that or
+   the network server silently discards every uplink as a replay. Two things fall out of it that
+   are easy to miss:
+   - Zephyr's stack does **not** retry a failed join. `lorawan_join()` attempts once and returns an
+     errno, so retrying is this firmware's job — which is what §6's `SOFT_ERROR` path already does.
+   - OTAA on LoRaWAN 1.0.4 needs a monotonically increasing DevNonce across reboots, so it has to
+     live in non-volatile storage (`CONFIG_LORAWAN_NVM_SETTINGS`).
+   - In US915 the gateway uses one sub-band of eight. `lorawan_set_channels_mask()` must be called
+     before the join or the device hunts 72 channels and appears to fail for RF reasons it does not
+     have. The gateway here is a MultiTech Conduit; its configured sub-band is the value to match.
 
-Scaffold the tree from v3 §4 as real files — `west.yml`, `CMakeLists.txt`, `prj.conf`,
-`boards/nrf52840dk_nrf52840.overlay` (placeholder pinout until §9.1 is answered), and stub
-`hal/svc/eda/app` files with the module-contract doc-comments from §7 and the `.md` convention
-from `deepsight-polaris-software`.
+2. **The W5500 is not wired up.** `snippets/eth-w5500/w5500.overlay` carries the only pin
+   assignments in this project not read back from a generated devicetree. The TCP backend compiles
+   in both the static-address and DHCP configurations and has never run.
+
+3. **TCP downlink is accepted but never delivered.** `register_downlink_callback()` stores the
+   pointer; delivering would need a reader thread parked in `zsock_recv()`, and what framing means
+   over a stream is undecided.
+
+4. Security beyond LoRaWAN's own AppSKey, and anything at all on the TCP side.
+
+5. Confirm the US915 payload table in §5 against the actual spec, and decide the DR0 floor
+   behaviour.
+
+6. Confirm the record field list (temperature/humidity/battery/RSSI only, pressure and accel
+   dropped) is what is actually needed downstream.
+
+7. Whether the boot/reset-visibility idea in §6 is worth the wire-format change.
+
+8. `eda::IdleHook` has no callback registered anywhere today; it exists because it was asked for,
+   matching `deepsight-polaris-software`. If nothing ever registers one it is a module carrying its
+   weight for nothing, worth revisiting once there is an actual idle-time task to hang off it.
+
+## 10. Where this stands
+
+The scaffold is done and the firmware builds in three configurations: LoRa, TCP with a static
+address, and TCP with DHCP.
+
+| variant | FLASH | RAM |
+| --- | --- | --- |
+| LoRa | 120 KB (11.5%) | 55 KB (21.0%) |
+| TCP | 155 KB (14.8%) | 80 KB (30.5%) |
+
+What is exercised: the whole BLE path — passive scan, Eddystone parsing, the device table, the
+state machine, the watchdog, the LEDs. What is not: either transport. The device boots, scans,
+fills the table, and falls into `SOFT_ERROR` when it tries to dispatch, because `connect()`
+deliberately fails.
+
+The next step is item 1 above.
