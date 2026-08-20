@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include <zephyr/devicetree.h>
+#include <zephyr/kernel.h>
 
 namespace config
 {
@@ -60,5 +61,38 @@ constexpr uint32_t CONCENTRATOR_ID = CONFIG_APP_CONCENTRATOR_ID;
 /// Tells whatever consumes the uplinks that the device restarted and its device
 /// table started empty, instead of leaving it to infer a gap.
 constexpr bool REPORT_BOOT_IN_FIRST_UPLINK = IS_ENABLED(CONFIG_APP_REPORT_BOOT);
+
+#if defined(CONFIG_APP_LINK_TCP)
+
+/// IPv4 address of the uplink server, as a dotted quad.
+constexpr const char* LINK_TCP_SERVER_ADDR = CONFIG_APP_LINK_TCP_SERVER_ADDR;
+
+/// TCP port of the uplink server.
+constexpr uint16_t LINK_TCP_SERVER_PORT = CONFIG_APP_LINK_TCP_SERVER_PORT;
+
+/// How long a connection attempt may take before it is called a failure.
+constexpr uint32_t LINK_TCP_CONNECT_TIMEOUT_MS = CONFIG_APP_LINK_TCP_CONNECT_TIMEOUT_MS;
+
+/// Largest uplink fragment handed to the transport, in bytes.
+///
+/// Reported by hal::link::get_max_payload_size() so svc::comms fragments the
+/// same way it does on LoRaWAN. See the Kconfig help for why a TCP link
+/// declares a limit it does not have.
+constexpr uint16_t LINK_TCP_MAX_FRAGMENT = CONFIG_APP_LINK_TCP_MAX_FRAGMENT;
+
+#if !defined(CONFIG_APP_LINK_TCP_USE_DHCP)
+
+/// Static IPv4 address of this concentrator, as a dotted quad.
+constexpr const char* LINK_TCP_LOCAL_IP = CONFIG_APP_LINK_TCP_LOCAL_IP;
+
+/// Static netmask, as a dotted quad.
+constexpr const char* LINK_TCP_NETMASK = CONFIG_APP_LINK_TCP_NETMASK;
+
+/// Static default gateway, as a dotted quad.
+constexpr const char* LINK_TCP_GATEWAY = CONFIG_APP_LINK_TCP_GATEWAY;
+
+#endif // !CONFIG_APP_LINK_TCP_USE_DHCP
+
+#endif // CONFIG_APP_LINK_TCP
 
 } // namespace config

@@ -172,6 +172,24 @@ west sdk install -t arm-zephyr-eabi
 
 Also needed on the host: `cmake >= 3.20`, `ninja`, `gperf`, `dtc` (device-tree-compiler).
 
+### The two variants
+
+The concentrator ships in two variants that differ only in how collected
+readings leave the device. Everything above `src/hal/link` is identical, so this
+is one repository with two builds rather than two firmwares.
+
+| variant | hardware on the SPI header | selected by |
+| --- | --- | --- |
+| LoRaWAN (default) | Modtronix inAir9 (SX1276) | `CONFIG_APP_LINK_LORA` |
+| TCP | Wiznet W5500 | `CONFIG_APP_LINK_TCP` plus the `eth-w5500` snippet |
+
+Both cannot be plugged in at once: they are the same four SPI pins, which is why
+the `eth-w5500` snippet deletes the SX1276 node the board overlay declares.
+
+The server address, port, and static-versus-DHCP addressing are Kconfig symbols
+under "Uplink transport", consumed through `src/config.hpp`. Changing where
+uplinks go is a `prj.conf` line or a `menuconfig` field, never a source edit.
+
 ### Build and flash
 
 From the workspace root, with the venv active:
@@ -180,6 +198,17 @@ From the workspace root, with the venv active:
 west build -b nrf52840dk/nrf52840 app_project --pristine
 west flash
 ```
+
+The TCP variant, which builds with no Ethernet hardware present:
+
+```
+west build -b nrf52840dk/nrf52840 app_project --pristine -S eth-w5500 -- -DCONFIG_APP_LINK_TCP=y
+```
+
+Keeping that build green from the start is what stops the TCP path from rotting
+while the hardware is still being chosen. It will not *run* without a network
+interface: `hal::link::initialize()` reports `NOT_READY` when
+`net_if_get_default()` returns nothing.
 
 The image lands in `build/zephyr/zephyr.hex`.
 
@@ -200,11 +229,15 @@ west build -t menuconfig                                   # inspect the resulti
 west build -b nrf52840dk/nrf52840 app_project -p always     # force clean
 ```
 
-### A note on hal/os/freertos
+### One backend per seam, chosen at build time
 
-`src/hal/os/freertos/os_freertos.cpp` is deliberately absent from `CMakeLists.txt` and is not
-compiled by any of the commands above. It is a ready second backend for the `hal::os` seam, not
-part of this firmware; see `src/hal/os/os.md`.
+Two modules have more than one possible implementation, and in both cases
+exactly one is compiled: `src/hal/link` picks LoRa or TCP from the Kconfig
+choice above, and `src/hal/os` has only its Zephyr backend today. A FreeRTOS
+`hal::os` backend was written and then removed — it could not be compiled here,
+so its assertions were unverifiable and sizing the shared buffers for it cost
+320 B of RAM that nothing used. See `src/hal/os/os.md` for what adding a second
+one would actually involve.
 
 ## Watching it run
 

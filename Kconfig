@@ -4,7 +4,114 @@
 # src/config.hpp, so no module reads a Kconfig symbol directly and no behaviour
 # is changed by editing a source file.
 
-menu "BLE to LoRa concentrator"
+menu "BLE concentrator"
+
+# Uplink transport ------------------------------------------------------------
+#
+# The concentrator ships in two variants that differ only in how collected
+# readings leave the device. Choosing here is what selects the one backend
+# compiled under src/hal/link/, and what pulls in the Zephyr subsystem that
+# backend needs, so prj.conf carries neither LoRa nor networking symbols.
+
+choice APP_LINK_BACKEND
+	prompt "Uplink transport"
+	default APP_LINK_LORA
+	help
+	  Which hal::link backend the firmware is built with. Nothing above
+	  hal/link changes with this choice.
+
+config APP_LINK_LORA
+	bool "LoRaWAN"
+	select SPI
+	select LORA
+	select LORA_SX127X
+	select LORAWAN
+	help
+	  Uplinks go out over LoRaWAN through an SX127x radio described in the
+	  board overlay under the lora0 alias.
+
+config APP_LINK_TCP
+	bool "TCP"
+	select NETWORKING
+	select NET_IPV4
+	select NET_TCP
+	select NET_SOCKETS
+	select NET_MGMT
+	select NET_MGMT_EVENT
+	help
+	  Uplinks go out over a TCP connection to a fixed server. The network
+	  interface comes from the board: an integrated MAC on a Nucleo, or an
+	  SPI Ethernet controller such as a W5500 on a board without one.
+
+endchoice
+
+if APP_LINK_LORA
+
+config APP_LINK_LORA_REGION_US915
+	bool "Use the US915 regional parameters"
+	default y
+	select LORAWAN_REGION_US915
+
+endif # APP_LINK_LORA
+
+if APP_LINK_TCP
+
+config APP_LINK_TCP_USE_DHCP
+	bool "Obtain the IP address over DHCP"
+	default n
+	select NET_DHCPV4
+	help
+	  Off by default on purpose. With a static address a network that is not
+	  there fails at connect() and the state machine retries, which is a
+	  state the firmware already handles. With DHCP the device instead has
+	  no address at all, and "the network is not up yet" becomes
+	  indistinguishable from "the network is gone".
+
+config APP_LINK_TCP_LOCAL_IP
+	string "Static IP address of this concentrator"
+	default "192.168.1.50"
+	depends on !APP_LINK_TCP_USE_DHCP
+
+config APP_LINK_TCP_NETMASK
+	string "Static netmask"
+	default "255.255.255.0"
+	depends on !APP_LINK_TCP_USE_DHCP
+
+config APP_LINK_TCP_GATEWAY
+	string "Static default gateway"
+	default "192.168.1.1"
+	depends on !APP_LINK_TCP_USE_DHCP
+
+config APP_LINK_TCP_SERVER_ADDR
+	string "IPv4 address of the uplink server"
+	default "192.168.1.10"
+	help
+	  Dotted-quad only. Resolving a name would make every uplink depend on a
+	  DNS server being reachable, which is one more thing to fail between
+	  this device and its data.
+
+config APP_LINK_TCP_SERVER_PORT
+	int "TCP port of the uplink server"
+	default 5000
+	range 1 65535
+
+config APP_LINK_TCP_CONNECT_TIMEOUT_MS
+	int "Milliseconds to wait for the TCP connection to establish"
+	default 5000
+	range 100 60000
+
+config APP_LINK_TCP_MAX_FRAGMENT
+	int "Largest uplink fragment handed to the transport, in bytes"
+	default 242
+	range 32 242
+	help
+	  TCP imposes no such limit, but reporting one keeps svc::comms
+	  fragmenting exactly as it does on LoRaWAN, so the uplink wire format
+	  and the fragmentation path are identical on both variants and only one
+	  of them has to be tested. 242 is the LoRaWAN ceiling, so a fragment
+	  built here is always one a LoRa build could also have sent.
+
+endif # APP_LINK_TCP
 
 config APP_MAX_DEVICES
 	int "Maximum endpoint devices tracked at once"

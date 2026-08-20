@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.20.0)
 
+# Snippets shipped with this application (see snippets/). SNIPPET_ROOT covers
+# only ZEPHYR_BASE unless the application adds itself, and it has to be set
+# before find_package(Zephyr) because that is what processes -S.
+list(APPEND SNIPPET_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(base_platform_zephyr_ble_concentrator LANGUAGES C CXX)
 
@@ -43,12 +48,6 @@ target_sources(app PRIVATE
     src/hal/ble/zephyr/ble_zephyr.cpp
     src/hal/gpio/zephyr/gpio_zephyr.cpp
     src/hal/led/led.cpp
-    # Exactly one link backend is compiled. It is what makes this repository
-    # build both concentrator variants: LoRaWAN here, TCP on a board with a
-    # wired network. Adding that second backend means adding
-    # src/hal/link/tcp/link_tcp.cpp and selecting between the two here, not
-    # forking anything above hal/link.
-    src/hal/link/lora/link_lora.cpp
     src/hal/os/zephyr/os_zephyr.cpp
     src/hal/system/zephyr/system_zephyr.cpp
     src/hal/watchdog/zephyr/watchdog_zephyr.cpp
@@ -59,3 +58,14 @@ target_sources(app PRIVATE
     src/svc/comms/subsystem.cpp
     src/svc/system_diagnostics/subsystem.cpp
 )
+
+# Exactly one link backend is compiled, chosen by the "Uplink transport" menu
+# in Kconfig. This is what makes one repository build both concentrator
+# variants instead of forking: everything above src/hal/link is identical.
+if(CONFIG_APP_LINK_LORA)
+    target_sources(app PRIVATE src/hal/link/lora/link_lora.cpp)
+elseif(CONFIG_APP_LINK_TCP)
+    target_sources(app PRIVATE src/hal/link/tcp/link_tcp.cpp)
+else()
+    message(FATAL_ERROR "No link backend selected. Set CONFIG_APP_LINK_LORA or CONFIG_APP_LINK_TCP.")
+endif()

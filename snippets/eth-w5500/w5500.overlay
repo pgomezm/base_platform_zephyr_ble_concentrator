@@ -1,0 +1,63 @@
+/*
+ * Wiznet W5500 on the nRF52840 DK's Arduino Uno R3 header.
+ *
+ * The LoRa and TCP variants of this firmware are the same board with a
+ * different thing plugged into the same SPI header, so this overlay deletes the
+ * SX1276 the board overlay declares and puts the W5500 in its place. Both
+ * cannot be present: they would be two SPI children at reg = <0>.
+ *
+ * Pin choice matches boards/nrf52840dk_nrf52840.overlay, so the same jumper
+ * wires serve either module. The arduino_header gpio-map index is NOT the D
+ * number: indices 0-5 are A0-A5 and 6-19 are D0-D13, so index = 6 + D.
+ *
+ *   W5500    DK header   index   nRF52840 pin   signal
+ *   ------   ---------   -----   ------------   ------
+ *   MISO     D12          18     P1.14          SPI3 MISO, set by arduino_spi
+ *   MOSI     D11          17     P1.13          SPI3 MOSI, set by arduino_spi
+ *   SCLK     D13          19     P1.15          SPI3 SCK,  set by arduino_spi
+ *   SCS      D10          16     P1.12          SPI3 chip select
+ *   INT      D2            8     P1.03          int-gpios, active low
+ *   RSTn     D9           15     P1.11          reset-gpios, active low
+ *   3V3      3V3
+ *   GND      GND
+ *
+ * These pin assignments have NOT been read back from a generated devicetree the
+ * way the LoRa ones were, because no W5500 has been wired up yet. Re-verify
+ * against build/zephyr/zephyr.dts before trusting them: a header index that
+ * shifts does not fail the build, it produces a controller that never answers.
+ */
+
+/ {
+	aliases {
+		/* The board overlay points lora0 at the SX1276 deleted below.
+		 * Leaving the alias behind is a devicetree error, not a dangling
+		 * reference that quietly resolves to nothing. */
+		/delete-property/ lora0;
+	};
+};
+
+&arduino_spi {
+	status = "okay";
+	cs-gpios = <&arduino_header 16 GPIO_ACTIVE_LOW>; /* D10 */
+
+	/* The board overlay's SX1276. Not present in a TCP build. */
+	/delete-node/ lora@0;
+
+	w5500: ethernet@0 {
+		compatible = "wiznet,w5500";
+		reg = <0>;
+
+		/* The W5500 is good for 80 MHz; 10 is conservative for jumper
+		 * wires and is not the bottleneck for a 15-minute uplink. */
+		spi-max-frequency = <10000000>;
+
+		int-gpios = <&arduino_header 8 GPIO_ACTIVE_LOW>;    /* D2 */
+		reset-gpios = <&arduino_header 15 GPIO_ACTIVE_LOW>; /* D9 */
+
+		/* Locally administered address: the second-least-significant bit
+		 * of the first octet is set, so it cannot collide with a
+		 * manufacturer-assigned MAC. Give each unit its own before
+		 * putting two on the same segment. */
+		local-mac-address = [02 00 5A 01 00 01];
+	};
+};
