@@ -12,3 +12,7 @@ _to_delete/
 
 # Coding-agent workspace config, local to one machine.
 .claude/
+
+# Per-installation overrides: LoRaWAN credentials, a site's server address.
+# Never committed. prj_local.conf.example documents what goes in it.
+prj_local.conf
