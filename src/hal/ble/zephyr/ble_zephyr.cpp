@@ -37,7 +37,11 @@ bool s_is_scanning = false;
 /// @param rssi received signal strength, in dBm
 /// @param adv_type advertising PDU type
 /// @param p_buffer advertising payload
-void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
+/// Given C language linkage because Zephyr calls it through a C function
+/// pointer. On this target it would work either way — C and C++ share the
+/// calling convention — but the standard does not promise that, and the marker
+/// is where the C boundary is documented. Do not remove it as redundant.
+extern "C" void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
                    struct net_buf_simple* p_buffer)
 {
     ARG_UNUSED(adv_type);

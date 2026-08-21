@@ -49,7 +49,11 @@ struct k_thread s_idle_thread_data;
 /// approximates one instead, at the lowest priority the build allows, so it
 /// only actually runs when every other thread is blocked or sleeping. See the
 /// caveat on register_idle_callback() in os.hpp.
-void idle_approximation_thread(void*, void*, void*)
+/// Given C language linkage because Zephyr calls it through a C function
+/// pointer. On this target it would work either way — C and C++ share the
+/// calling convention — but the standard does not promise that, and the marker
+/// is where the C boundary is documented. Do not remove it as redundant.
+extern "C" void idle_approximation_thread(void*, void*, void*)
 {
     while (true)
     {
@@ -71,7 +75,11 @@ struct TimerUserData
 };
 
 /// Runs in Zephyr's system timer ISR context. Hands off and returns.
-void timer_expiry_handler(struct k_timer* p_timer)
+/// Given C language linkage because Zephyr calls it through a C function
+/// pointer. On this target it would work either way — C and C++ share the
+/// calling convention — but the standard does not promise that, and the marker
+/// is where the C boundary is documented. Do not remove it as redundant.
+extern "C" void timer_expiry_handler(struct k_timer* p_timer)
 {
     auto* const p_data = static_cast<TimerUserData*>(k_timer_user_data_get(p_timer));
 
