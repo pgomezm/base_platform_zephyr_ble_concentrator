@@ -1,0 +1,21 @@
+# Copy to prj_local.conf and fill in. That file is gitignored; this one is not.
+#
+# CMakeLists.txt applies prj_local.conf automatically when it exists, so there
+# is no build flag to remember. Without it the build still works, using the
+# obviously fake defaults in Kconfig — which is what lets someone clone this
+# repository and compile it without holding anyone's credentials.
+
+# LoRaWAN OTAA credentials, read off the join server.
+#
+# On a MultiTech Conduit with Location = Local Keys, these are the network-wide
+# values under Local Network Settings, and any DevEUI presenting them is
+# accepted. See docs/GATEWAYS.md.
+CONFIG_APP_LINK_LORA_JOIN_EUI="0102030405060708"
+CONFIG_APP_LINK_LORA_APP_KEY="000102030405060708090a0b0c0d0e0f"
+
+# The sub-band the gateway listens on, if it is not the default 2.
+# CONFIG_APP_LINK_LORA_SUBBAND=2
+
+# TCP variant: where uplinks go, if not the Kconfig default.
+# CONFIG_APP_LINK_TCP_SERVER_ADDR="192.168.1.45"
+# CONFIG_APP_LINK_TCP_SERVER_PORT=5000

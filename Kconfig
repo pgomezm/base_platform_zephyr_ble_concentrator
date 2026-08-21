@@ -51,6 +51,62 @@ config APP_LINK_LORA_REGION_US915
 	bool "Use the US915 regional parameters"
 	default y
 	select LORAWAN_REGION_US915
+	help
+	  The only region implemented today. EU868 is not a matter of flipping
+	  this symbol: it has no sub-bands, a single-word channel mask, an
+	  enforced duty cycle and a different payload table. See docs/GATEWAYS.md.
+
+config APP_LINK_LORA_SUBBAND
+	int "US915 frequency sub-band the gateway uses"
+	default 2
+	range 1 8
+	depends on APP_LINK_LORA_REGION_US915
+	help
+	  US915 has eight sub-bands and a gateway listens on exactly one.
+	  Sub-band n covers the eight 125 kHz channels starting at (n-1)*8, plus
+	  the 500 kHz channel 63+n. A device left to hunt all 72 channels takes a
+	  very long time to join or never joins, and the symptom looks like an RF
+	  or wiring fault rather than a configuration one.
+
+	  Read this off the gateway: on a MultiTech Conduit it is
+	  Setup -> LoRa -> Frequency Sub-Band. The unit this firmware is tested
+	  against uses 2, which is also the common default.
+
+config APP_LINK_LORA_JOIN_EUI
+	string "JoinEUI / AppEUI, 16 hex characters"
+	default "0102030405060708"
+	help
+	  Identifies the application on the join server. Not a secret.
+
+config APP_LINK_LORA_APP_KEY
+	string "AppKey, 32 hex characters"
+	default "000102030405060708090a0b0c0d0e0f"
+	help
+	  The root key, from which the session keys are derived. It never leaves
+	  the device and never travels over the air.
+
+	  The default here is deliberately not a real key. Override it in a
+	  prj_local.conf that .gitignore excludes, so a clone of this repository
+	  builds without carrying anyone's credentials.
+
+config APP_LINK_LORA_DEV_EUI_FROM_HWINFO
+	bool "Derive the DevEUI from the SoC's factory identifier"
+	default y
+	select HWINFO
+	help
+	  The nRF52840's factory identifier is eight bytes and unique per part,
+	  which is exactly a DevEUI. Deriving it means a unit can be flashed and
+	  powered on without being registered first, and no two units can
+	  accidentally ship with the same identity.
+
+	  This works because the gateway accepts any DevEUI presenting the right
+	  AppEUI/AppKey pair. Against a join server with per-device credentials,
+	  turn this off and set the DevEUI it was registered with.
+
+config APP_LINK_LORA_DEV_EUI
+	string "DevEUI, 16 hex characters"
+	default "0000000000000000"
+	depends on !APP_LINK_LORA_DEV_EUI_FROM_HWINFO
 
 endif # APP_LINK_LORA
 

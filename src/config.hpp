@@ -95,4 +95,31 @@ constexpr const char* LINK_TCP_GATEWAY = CONFIG_APP_LINK_TCP_GATEWAY;
 
 #endif // CONFIG_APP_LINK_TCP
 
+#if defined(CONFIG_APP_LINK_LORA)
+
+/// US915 frequency sub-band the gateway listens on, 1 to 8.
+constexpr uint8_t LINK_LORA_SUBBAND = CONFIG_APP_LINK_LORA_SUBBAND;
+
+/// JoinEUI / AppEUI, as 16 hex characters. Not a secret.
+constexpr const char* LINK_LORA_JOIN_EUI = CONFIG_APP_LINK_LORA_JOIN_EUI;
+
+/// AppKey, as 32 hex characters.
+///
+/// The value compiled in comes from Kconfig, whose default is deliberately not
+/// a real key: override it from a gitignored prj_local.conf.
+constexpr const char* LINK_LORA_APP_KEY = CONFIG_APP_LINK_LORA_APP_KEY;
+
+/// Whether the DevEUI is derived from the SoC's factory identifier.
+constexpr bool LINK_LORA_DEV_EUI_FROM_HWINFO =
+    IS_ENABLED(CONFIG_APP_LINK_LORA_DEV_EUI_FROM_HWINFO);
+
+#if !defined(CONFIG_APP_LINK_LORA_DEV_EUI_FROM_HWINFO)
+
+/// DevEUI, as 16 hex characters, when it is not derived from hardware.
+constexpr const char* LINK_LORA_DEV_EUI = CONFIG_APP_LINK_LORA_DEV_EUI;
+
+#endif // !CONFIG_APP_LINK_LORA_DEV_EUI_FROM_HWINFO
+
+#endif // CONFIG_APP_LINK_LORA
+
 } // namespace config

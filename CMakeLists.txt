@@ -5,6 +5,15 @@ cmake_minimum_required(VERSION 3.20.0)
 # before find_package(Zephyr) because that is what processes -S.
 list(APPEND SNIPPET_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Credentials and any other per-installation override live in prj_local.conf,
+# which .gitignore excludes. Applied automatically when present so nobody has to
+# remember a flag, and absent by default so a fresh clone still builds — with
+# the deliberately fake key Kconfig defaults to. See prj_local.conf.example.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/prj_local.conf)
+    list(APPEND EXTRA_CONF_FILE ${CMAKE_CURRENT_SOURCE_DIR}/prj_local.conf)
+    message(STATUS "Applying prj_local.conf")
+endif()
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(base_platform_zephyr_ble_concentrator LANGUAGES C CXX)
 
