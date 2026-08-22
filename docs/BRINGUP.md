@@ -131,3 +131,57 @@ worth fixing in `GATEWAYS.md` rather than in the firmware.
 - Confirm an uplink actually carries devices: the payload on `lora/<DevEUI>/up`
   should grow as endpoints are heard, and `svc_system_diagnostics` prints a
   health line once a minute with the device count.
+
+## 7. What the first bring-up actually found
+
+Recorded because none of it was visible from the code, and two of the three
+would have been found faster by looking at the gateway first.
+
+**The gateway's MQTT feed is half the instrument.** `lora/net_keepalive` alone
+means the broker and network server are up and nothing has transmitted. The
+first `join_request` appearing is the dividing line: from that moment the radio
+works and any remaining failure is credentials or downlink. Filter the keepalive
+out or the join scrolls past:
+
+```sh
+mosquitto_sub -v -t 'lora/#' | grep -v net_keepalive
+```
+
+**A join that reaches the gateway and gets no answer is a key mismatch.** The
+network server cannot authenticate a request whose MIC does not verify, so it
+drops it silently — no `join_accept`, no `join_rejected`. On the device this
+surfaces as `-116` / `Rx 2 timeout`, which reads like an RF fault and is not
+one. Check `prj_local.conf` exists and that CMake printed
+`-- Applying prj_local.conf` before suspecting the radio.
+
+**A `joined` on the gateway with a timeout on the device is a one-way link.**
+The gateway acknowledged and transmitted the Join-Accept in RX1 — its
+`packet_sent` carries `twnd: 1` and a `tmst` exactly 5,000,000 µs after the
+uplink — and the device did not hear it. That asymmetry is what a bad antenna on
+the node looks like: both directions lose the same decibels, but the gateway has
+the antenna, the LNA and eight receive chains to spare, so the downlink is the
+one that breaks first. Uplink RSSI is the instrument; in the same room it should
+be around −40 dBm, and −108 means something is wrong with the RF path
+regardless of whether the join eventually succeeds.
+
+**ADR at DR0 stops uplinks entirely, and that is not a bug.** A marginal link
+makes the network server drop the device to DR0, where US915 allows an 11-byte
+application payload. `UplinkHeader` is 12 bytes, so nothing fits and
+`svc::comms` logs:
+
+```
+<wrn> svc_comms: dispatch skipped: 11 byte payload cannot hold a 12 byte header plus a record
+```
+
+It waits for the next cycle rather than fragmenting into packets the radio would
+refuse. The fix is the antenna, not the firmware.
+
+| DR | payload | records per fragment |
+| --- | --- | --- |
+| DR0 | 11 B | 0 — the header alone does not fit |
+| DR1 | 53 B | 3 |
+| DR2 | 125 B | 8 |
+| DR3 | 242 B | 17 |
+
+So a link good enough to join is not necessarily good enough to report. Confirm
+the data rate settles above DR0 before calling a unit commissioned.
