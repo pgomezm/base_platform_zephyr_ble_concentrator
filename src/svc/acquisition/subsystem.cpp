@@ -78,31 +78,59 @@ void on_adv_report(const hal::ble::AdvReport& report)
 /// @param report the raw report
 /// @param out_frame where the parsed frame is written on success
 /// @return true if the payload is a custom frame from a device of ours
-bool parse_custom_frame(const hal::ble::AdvReport& report, EddystoneCustomFrame& out_frame)
+bool parse_custom_frame(const hal::ble::AdvReport& report, ManufacturerFrame& out_frame)
 {
-    if (report.data_length < sizeof(EddystoneCustomFrame))
+    // Advertising data is a sequence of AD structures, each one a length byte,
+    // a type byte, and the value. The endpoints emit Flags first and the
+    // manufacturer data second, so the payload never starts at offset zero and
+    // its offset is not fixed either. Walk the elements; do not assume a
+    // layout.
+    size_t offset = 0U;
+
+    while ((offset + 1U) < report.data_length)
     {
-        return false;
+        const uint8_t element_length = report.data[offset];
+
+        // A zero length terminates the sequence; whatever follows is padding.
+        if (element_length == 0U)
+        {
+            return false;
+        }
+
+        // The length counts the type byte plus the value, so this element spans
+        // element_length + 1 bytes. An element claiming more than remains is
+        // malformed, and is discarded rather than read past the buffer.
+        if ((offset + 1U + element_length) > report.data_length)
+        {
+            return false;
+        }
+
+        const uint8_t element_type = report.data[offset + 1U];
+
+        if (element_type == AD_TYPE_MANUFACTURER_SPECIFIC)
+        {
+            const uint8_t value_length = static_cast<uint8_t>(element_length - 1U);
+
+            if (value_length != sizeof(ManufacturerFrame))
+            {
+                return false;
+            }
+
+            // Copied rather than cast in place: the advertising buffer has no
+            // alignment guarantee, and reading a uint32_t straight out of it is
+            // undefined behaviour on a platform that faults on unaligned
+            // access.
+            memcpy(&out_frame, &report.data[offset + 2U], sizeof(out_frame));
+
+            // The only content filter in the receive path. Everything else
+            // advertising nearby is somebody else's device.
+            return out_frame.company_id == config::EXPECTED_COMPANY_ID;
+        }
+
+        offset += 1U + element_length;
     }
 
-    // Copied rather than cast in place: the advertising buffer has no alignment
-    // guarantee, and reading a uint32_t straight out of it is undefined
-    // behaviour on a platform that faults on unaligned access.
-    memcpy(&out_frame, report.data, sizeof(EddystoneCustomFrame));
-
-    if (out_frame.frame_type != static_cast<uint8_t>(EddystoneFrameType::CUSTOM))
-    {
-        return false;
-    }
-
-    // The only content filter in the receive path. Everything else advertising
-    // nearby is somebody else's device.
-    if (out_frame.company_id != config::EXPECTED_COMPANY_ID)
-    {
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 /// Drain the report pool, parsing each report and recording what it holds.
@@ -112,7 +140,7 @@ void drain_report_pool()
 
     while (k_msgq_get(&s_report_pool, &report, K_NO_WAIT) == 0)
     {
-        EddystoneCustomFrame frame{};
+        ManufacturerFrame frame{};
 
         if (!parse_custom_frame(report, frame))
         {

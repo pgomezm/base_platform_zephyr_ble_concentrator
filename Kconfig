@@ -191,11 +191,16 @@ config APP_ADV_REPORT_POOL_SIZE
 
 config APP_EXPECTED_COMPANY_ID
 	hex "Company identifier accepted in endpoint advertisements"
-	default 0xFFFF
+	default 0x05AA
 	help
 	  Advertisements carrying any other company id are discarded. This is a
 	  filter, not an identity: every endpoint of the product line shares it.
-	  Must match the value the endpoint firmware advertises.
+
+	  Must match the value the endpoint firmware advertises, which is
+	  `.company_id` in base_platform_baremetal_ble's src/app/app.c. The
+	  endpoint writes it low byte first, and this filter compares the value
+	  after a little-endian read, so configure it as it reads there: 0x05AA,
+	  not 0xAA05.
 
 config APP_DISPATCH_PERIOD_MIN
 	int "Minutes between uplink dispatches"

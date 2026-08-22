@@ -33,9 +33,10 @@ void ListeningState::entry()
     // dispatch period. In the original diagram this is IDLE, and the operation
     // running inside it is the one labelled HIRING, which reads as a
     // transcription of HEARING. Named for what it does.
-    eda::Port::send_event(app::PortList::ACQUISITION_PORT,
-                          static_cast<uint32_t>(svc::acquisition::Event::START_SCAN), 0);
-
+    // The scan is already running: it starts in STARTUP and stops only in
+    // HARD_ERROR, which is terminal. Nothing on the path into this state
+    // interrupts it, so re-arming here would be a second answer to a question
+    // that already has one.
     svc::comms::start_dispatch_timer();
 
     LOG_INF("listening for endpoint advertisements");
