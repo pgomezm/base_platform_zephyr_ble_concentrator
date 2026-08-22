@@ -46,28 +46,57 @@ budget can't fit it all in one.
 
 ## 2. Reference: what the sensor transmits (locked to Eddystone)
 
-From `base_platform_baremetal_ble/src/svc/eddystone/eddystone_protocol.h`:
+**Taken from what the endpoint transmits, not from its structs.** This
+distinction cost a bring-up evening: the endpoint's
+`eddystone_protocol.h` declares a `SvcEddystoneCustomFrame` of
+`frame_type + company_id + sensor_data` = 19 bytes, this project mirrored it
+byte for byte with `static_assert`s on both sides, and the two agreed perfectly
+on a layout **neither one puts on the air**. The endpoint's
+`build_custom_advertising_data()` never uses that struct.
 
-```c
-// Custom Eddystone frame (frame_type 0xFF), 19 bytes total, fits a legacy ADV (31 B max)
-typedef struct __attribute__((packed)) {
-    uint8_t  frame_type;      // 0xFF
-    uint16_t company_id;
-    struct __attribute__((packed)) {
-        int8_t   sns_temperature;   // °C
-        uint8_t  sns_humidity;      // %
-        uint16_t sns_pressure;
-        int16_t  acc_x_raw_data;
-        int16_t  acc_y_raw_data;
-        int16_t  acc_z_raw_data;
-        uint16_t battery_mv;
-        uint32_t timestamp;         // endpoint's own sequence/uptime, NOT wall clock
-    } sensor_data;                  // 16 bytes
-} SvcEddystoneCustomFrame;
+What actually goes out, from `build_custom_advertising_data()` in
+`base_platform_baremetal_ble/src/svc/eddystone/eddystone.c`, is ordinary BLE
+advertising data — a sequence of AD structures:
+
+```
+02 01 06                       AD: Flags
+13 FF                          AD: Manufacturer Specific Data, length 0x13
+AA 05                          company id 0x05AA, low byte first
+<16 bytes>                     SvcEddystoneSensorData
 ```
 
-No device-ID field — identity is the BLE advertiser MAC address, which `device_table` uses as the
-key. `acquisition`'s parser targets this struct directly.
+So the payload inside the manufacturer element is **18 bytes**, not 19, and
+there is no `frame_type` field anywhere. The `0xFF` is the AD *element type* for
+Manufacturer Specific Data, at offset 4 — not a frame type at offset 0.
+
+```c
+// The 18 bytes inside the Manufacturer Specific Data element
+uint16_t company_id;            // 0x05AA, little-endian on the wire
+struct __attribute__((packed)) {
+    int8_t   sns_temperature;   // °C
+    uint8_t  sns_humidity;      // %
+    uint16_t sns_pressure;
+    int16_t  acc_x_raw_data;
+    int16_t  acc_y_raw_data;
+    int16_t  acc_z_raw_data;
+    uint16_t battery_mv;
+    uint32_t timestamp;         // endpoint's own sequence/uptime, NOT wall clock
+} sensor_data;                  // 16 bytes
+```
+
+`acquisition`'s parser therefore **walks the AD structures** looking for type
+`0xFF`, rather than casting the report from offset zero. Assuming a fixed offset
+is what made it read the Flags element and silently reject every endpoint in
+range — the failure mode of a content filter is silence, which is why this took
+a gateway capture and a side-by-side read of the transmitter to find.
+
+No device-ID field — identity is the BLE advertiser MAC address, which
+`device_table` uses as the key. The company id is a filter shared by the whole
+product line, not an identity.
+
+**The lesson is general: verifying a wire format against the peer's struct
+definition is not verifying it against the wire.** Only the code that serialises
+counts.
 
 ## 3. Board: standalone nRF52840 DevKit, two variants
 
@@ -98,7 +127,7 @@ non-problem in both variants.
 | Context | What runs there |
 | --- | --- |
 | Zephyr BT scan callback | On each advertising report: check it's a BLE legacy ADV under our `company_id` filter, copy the raw payload + RSSI + advertiser address into a static pool slot, enqueue to `acquisition`'s queue. **Never parses the Eddystone frame here, never touches `device_table` directly.** |
-| `acquisition` thread | Dequeues raw reports, parses `SvcEddystoneCustomFrame`, calls `device_table`'s upsert. The only thread that writes into `device_table`. |
+| `acquisition` thread | Dequeues raw reports, parses the manufacturer AD element, calls `device_table`'s upsert. The only thread that writes into `device_table`. |
 | `comms` thread | Wakes every `DISPATCH_PERIOD_MIN`. Reads a `device_table` snapshot, builds and fragments packets, is the **only** caller of `hal/link`'s send — single writer to the radio. |
 | `system_diagnostics` thread | Heartbeat / battery / link-health checks. Lowest-priority protocol thread. |
 | Zephyr log backend | Below everything else — logs never compete with scanning or the dispatch path. |

@@ -13,6 +13,7 @@
 
 #include "eda/port/port.hpp"
 #include "hal/system/system.hpp"
+#include "svc/acquisition/port.hpp"
 #include "svc/comms/port.hpp"
 
 #include <zephyr/logging/log.h>
@@ -31,6 +32,20 @@ void StartupState::entry()
     const hal::system::ResetReason reason = hal::system::get_reset_reason();
 
     LOG_INF("startup, reset reason %u", static_cast<unsigned>(reason));
+
+    // Collecting and reporting are independent, and scanning starts here so it
+    // stays that way. The concentrator's job on the BLE side is to hear
+    // endpoints; nothing about that depends on whether the uplink has a
+    // network yet. Starting the scan only once the network was up — which is
+    // what this firmware did until it bit twice in one evening — means a join
+    // failure leaves the device deaf as well as mute, and presents as "it does
+    // not see my endpoint", sending whoever debugs it at the wrong half.
+    //
+    // The device table evicts stale entries on its own, so collecting through
+    // an outage costs nothing and the first uplink after recovery carries
+    // whatever was heard meanwhile.
+    eda::Port::send_event(app::PortList::ACQUISITION_PORT,
+                          static_cast<uint32_t>(svc::acquisition::Event::START_SCAN), 0);
 
     // Services are already initialized by this point: this state waits for the
     // network, which is the only part of coming up that can fail slowly.

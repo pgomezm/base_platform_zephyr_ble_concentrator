@@ -64,20 +64,33 @@ struct __attribute__((packed)) EddystoneSensorData
 static_assert(sizeof(EddystoneSensorData) == 16U,
               "EddystoneSensorData must match the endpoint's 16 byte payload");
 
-/// The custom frame the endpoints advertise.
+/// BLE AD type for Manufacturer Specific Data.
 ///
-/// Mirrors `SvcEddystoneCustomFrame` in the endpoint firmware.
-///
-/// Note there is no device identifier anywhere in this frame. The only identity
-/// an endpoint has is its BLE advertiser address, which is why
-/// svc::device_table is keyed on the address and not on anything in here. The
-/// company id is shared across the whole product line: it is a filter, not an
-/// identity.
-struct __attribute__((packed)) EddystoneCustomFrame
-{
-    /// Frame type. EddystoneFrameType::CUSTOM for this frame.
-    uint8_t frame_type;
+/// This is the *element type* of an advertising data structure, not a field of
+/// any frame. Confusing the two is what made the first version of this parser
+/// read the Flags element and reject every endpoint in range.
+constexpr uint8_t AD_TYPE_MANUFACTURER_SPECIFIC = 0xFFU;
 
+/// The payload the endpoints put inside their Manufacturer Specific Data
+/// element.
+///
+/// **This is the wire format, taken from what the endpoint actually
+/// transmits** — `build_custom_advertising_data()` in
+/// `base_platform_baremetal_ble/src/svc/eddystone/eddystone.c` — and not from
+/// that project's `SvcEddystoneCustomFrame`, which declares a leading
+/// `frame_type` byte that the builder never emits. Mirroring the struct instead
+/// of the transmission is how this went unnoticed: both sides agreed on a
+/// layout neither one used.
+///
+/// The endpoint writes the company id low byte first, and every target here is
+/// little-endian, so a plain copy reads it correctly.
+///
+/// Note there is no device identifier anywhere in this payload. The only
+/// identity an endpoint has is its BLE advertiser address, which is why
+/// svc::device_table is keyed on the address. The company id is shared across
+/// the whole product line: it is a filter, not an identity.
+struct __attribute__((packed)) ManufacturerFrame
+{
     /// Company identifier, shared by every endpoint of this product line.
     uint16_t company_id;
 
@@ -85,8 +98,8 @@ struct __attribute__((packed)) EddystoneCustomFrame
     EddystoneSensorData sensor_data;
 };
 
-static_assert(sizeof(EddystoneCustomFrame) == 19U,
-              "EddystoneCustomFrame must match the endpoint's 19 byte frame");
+static_assert(sizeof(ManufacturerFrame) == 18U,
+              "ManufacturerFrame must stay 18 bytes: 2 of company id plus 16 of sensor data");
 
 } // namespace svc::acquisition
 
