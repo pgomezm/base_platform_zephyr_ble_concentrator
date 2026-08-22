@@ -8,6 +8,7 @@
 #include "svc/comms/subsystem.hpp"
 #include "svc/comms/comms_protocol.hpp"
 
+#include "app/port.hpp"
 #include "app/port_list.hpp"
 #include "app/tasks_priorities.hpp"
 #include "config.hpp"
@@ -273,8 +274,22 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
     switch (static_cast<Event>(event_id))
     {
     case Event::JOIN_NETWORK:
-        (void)hal::link::LinkFactory::get_instance().connect();
+    {
+        // The outcome has to travel back: app::StateMachine waits in STARTUP
+        // for NETWORK_JOINED or NETWORK_JOIN_FAILED, and until this reports one
+        // of them it stays there — never entering LISTENING, never starting the
+        // dispatch timer, and therefore never transmitting, however well the
+        // join itself went. Discarding this result is what made a device that
+        // joined the network still send nothing.
+        const hal::link::LinkError result = hal::link::LinkFactory::get_instance().connect();
+
+        const app::Event outcome = (result == hal::link::LinkError::NO_ERROR)
+                                       ? app::Event::NETWORK_JOINED
+                                       : app::Event::NETWORK_JOIN_FAILED;
+
+        eda::Port::send_event(app::PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
         break;
+    }
 
     case Event::DISPATCH_DUE:
     case Event::DISPATCH_NOW:
