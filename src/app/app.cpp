@@ -65,8 +65,6 @@ void App::initialize()
     m_active_object.init_task(TaskPriorities::APP, "app");
     m_port.init(PortList::APP_PORT, m_active_object);
 
-    get_state_machine().init();
-
     bool services_ready = true;
 
     // The table before acquisition, since acquisition writes into it as soon as
@@ -90,6 +88,16 @@ void App::initialize()
         LOG_ERR("system diagnostics failed to initialize");
         services_ready = false;
     }
+
+    // The state machine starts LAST, and this ordering is load-bearing: the
+    // entry action of its first state posts an event to svc::comms' port, so
+    // every service port has to be registered before init() runs. Starting it
+    // earlier does not fail loudly — eda::Port drops the event with a warning,
+    // the join is never attempted, the machine never leaves STARTUP, and
+    // scanning never begins, because START_SCAN lives in the entry action of
+    // the state it never reaches. One misplaced line, and the device looks
+    // alive and does nothing.
+    get_state_machine().init();
 
     // The outcome of bring-up is an event like any other. main() does not
     // decide what a failed service means, and neither does this function: the
