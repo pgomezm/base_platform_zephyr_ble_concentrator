@@ -257,8 +257,8 @@ void send_heartbeat_if_due()
 /// wrong" - two faults that look identical from the device, where both produce
 /// silence.
 ///
-/// @param max_payload what the transport says it can carry right now, for the log
-void send_adr_probe(uint8_t max_payload)
+/// @param rate_ceiling the most this data rate could carry, for the log
+void send_adr_probe(uint8_t rate_ceiling)
 {
     // Zero length, but a real buffer: a transport is entitled to dereference
     // the pointer it is handed without checking the count first.
@@ -269,13 +269,13 @@ void send_adr_probe(uint8_t max_payload)
     {
         LOG_ERROR("data rate allows %u bytes, too few for a %u byte header, and the empty probe "
                   "failed to send",
-                  max_payload, static_cast<unsigned>(sizeof(UplinkHeader)));
+                  rate_ceiling, static_cast<unsigned>(sizeof(UplinkHeader)));
         return;
     }
 
     LOG_WARNING("data rate allows %u bytes, too few for a %u byte header: sent an empty uplink so "
                 "the network can raise it",
-                max_payload, static_cast<unsigned>(sizeof(UplinkHeader)));
+                rate_ceiling, static_cast<unsigned>(sizeof(UplinkHeader)));
 }
 
 /// Build and send the uplink for this dispatch cycle.
@@ -287,20 +287,41 @@ void dispatch()
         return;
     }
 
-    const uint8_t max_payload = hal::link::LinkFactory::get_instance().get_max_payload_size();
-
-    // Not even the header fits. US915 DR0 is the case: 11 bytes, against a 12
-    // byte header. Nothing this firmware could say fits there - a BLE address
-    // alone is 6 of those 11 - so the only useful thing to transmit is nothing,
+    // What this data rate allows at best, with nothing else competing for the
+    // packet. Not even the header fits at US915 DR0: 11 bytes against a 12 byte
+    // header, and nothing this firmware could say fits there - a BLE address
+    // alone is 6 of those 11. So the only useful thing to transmit is nothing,
     // and transmitting nothing is what lets the network raise the rate.
-    if (max_payload <= sizeof(UplinkHeader))
+    const uint8_t rate_ceiling = hal::link::LinkFactory::get_instance().get_max_payload_size();
+
+    if (rate_ceiling <= sizeof(UplinkHeader))
     {
-        send_adr_probe(max_payload);
+        send_adr_probe(rate_ceiling);
+        return;
+    }
+
+    // What the next packet can actually carry. Lower than the ceiling whenever
+    // MAC traffic is riding along - a LinkADRAns owed to the network server
+    // takes its bytes first.
+    //
+    // Keeping this separate from the ceiling is the whole point. The two were
+    // one number once, and the first time ADR raised the rate the stale reading
+    // said 11 bytes for a single cycle: an unusable link by the test above,
+    // which fired a probe that was not needed and logged a warning blaming the
+    // data rate. A squeeze on one packet costs a cycle and passes on its own.
+    // An unusable data rate is permanent until something transmits. Same
+    // number, opposite remedies.
+    const uint8_t available = hal::link::LinkFactory::get_instance().get_available_payload_size();
+
+    if (available <= sizeof(UplinkHeader))
+    {
+        LOG_INFO("dispatch deferred: %u of %u bytes free this packet, the rest is MAC traffic",
+                 available, rate_ceiling);
         return;
     }
 
     const uint8_t records_per_fragment =
-        static_cast<uint8_t>((max_payload - sizeof(UplinkHeader)) / sizeof(EndpointRecord));
+        static_cast<uint8_t>((available - sizeof(UplinkHeader)) / sizeof(EndpointRecord));
 
     if (records_per_fragment == 0U)
     {
@@ -311,8 +332,8 @@ void dispatch()
         // not fit rather than a quiet one.
         ++s_sequence;
 
-        LOG_WARNING("data rate allows %u bytes: room for a %u byte header but not a %u byte record",
-                    max_payload, static_cast<unsigned>(sizeof(UplinkHeader)),
+        LOG_WARNING("%u bytes available: room for a %u byte header but not a %u byte record",
+                    available, static_cast<unsigned>(sizeof(UplinkHeader)),
                     static_cast<unsigned>(sizeof(EndpointRecord)));
 
         if (send_fragment(nullptr, 0U, 0U, 1U, hal::system::get_uptime_seconds(), true))

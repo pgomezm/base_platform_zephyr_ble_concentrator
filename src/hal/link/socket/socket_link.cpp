@@ -161,6 +161,13 @@ uint8_t SocketLink::get_max_payload_size() const
     return m_config.max_fragment;
 }
 
+uint8_t SocketLink::get_available_payload_size() const
+{
+    // Identical to the ceiling. Nothing rides along in a TCP segment that the
+    // application did not put there, so there is no squeeze to report.
+    return get_max_payload_size();
+}
+
 uint8_t SocketLink::get_max_uplinks_per_dispatch() const
 {
     // No airtime to ration and no duty cycle to respect, so a dispatch that

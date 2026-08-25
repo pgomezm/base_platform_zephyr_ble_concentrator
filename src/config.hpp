@@ -149,6 +149,12 @@ constexpr const char* LINK_WIFI_GATEWAY = CONFIG_APP_LINK_WIFI_GATEWAY;
 /// US915 frequency sub-band the gateway listens on, 1 to 8.
 constexpr uint8_t LINK_LORA_SUBBAND = CONFIG_APP_LINK_LORA_SUBBAND;
 
+/// US915 data rate a session starts at, before ADR moves it.
+///
+/// Zero is the safe default. Raising it is a per-site decision that needs a
+/// measured link; see the Kconfig help.
+constexpr uint8_t LINK_LORA_INITIAL_DATARATE = CONFIG_APP_LINK_LORA_INITIAL_DATARATE;
+
 /// Number of LoRaWAN transmissions one dispatch cycle may make.
 ///
 /// Every uplink fragment is its own transmission, and several back to back is

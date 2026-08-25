@@ -254,6 +254,23 @@ public:
         // Zephyr names for ADR being appropriate rather than harmful.
         lorawan_enable_adr(true);
 
+        // Where ADR starts from, not where it stays: the network overrides this
+        // with LinkADRReq as soon as it has uplinks to judge by.
+        //
+        // It matters because ADR begins again from scratch after every reboot.
+        // At DR0 the payload is 11 bytes against a 12 byte header, so a
+        // restarted node sends nothing but empty frames until the network has
+        // raised it - about 45 minutes at a 900 s dispatch period. Starting
+        // higher on a link that has been measured skips all of that.
+        if (lorawan_set_datarate(
+                static_cast<enum lorawan_datarate>(config::LINK_LORA_INITIAL_DATARATE)) != 0)
+        {
+            // Not fatal. The session simply starts wherever the region default
+            // puts it, which is what happened before this existed.
+            LOG_WARNING("could not set the initial data rate to DR%u; starting at the region default",
+                        static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE));
+        }
+
         struct lorawan_join_config config = {};
         config.mode = LORAWAN_ACT_OTAA;
         config.dev_eui = dev_eui;
@@ -267,9 +284,10 @@ public:
         // replay. Passing 0 here lets the stack use the stored value.
         config.otaa.dev_nonce = 0U;
 
-        LOG_INFO("joining: sub-band %u, DevEUI %02x%02x%02x%02x%02x%02x%02x%02x",
-                static_cast<unsigned>(config::LINK_LORA_SUBBAND), dev_eui[0], dev_eui[1],
-                dev_eui[2], dev_eui[3], dev_eui[4], dev_eui[5], dev_eui[6], dev_eui[7]);
+        LOG_INFO("joining: sub-band %u, DR%u, DevEUI %02x%02x%02x%02x%02x%02x%02x%02x",
+                 static_cast<unsigned>(config::LINK_LORA_SUBBAND),
+                 static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE), dev_eui[0], dev_eui[1],
+                 dev_eui[2], dev_eui[3], dev_eui[4], dev_eui[5], dev_eui[6], dev_eui[7]);
 
         // Blocking, and a single attempt: Zephyr's stack does not retry a
         // failed join. Retrying is the state machine's job, through the
@@ -305,10 +323,13 @@ public:
             return LinkError::CONNECT_ERROR;
         }
 
-        if (length > get_max_payload_size())
+        // Against what this packet can carry, not against the data rate's
+        // ceiling: the stack rejects on the former, so checking the latter
+        // would let a fragment through here only to have it refused below.
+        if (length > get_available_payload_size())
         {
-            LOG_ERROR("payload of %u bytes exceeds the %u byte limit at this data rate",
-                    static_cast<unsigned>(length), get_max_payload_size());
+            LOG_ERROR("payload of %u bytes exceeds the %u bytes this transmission can carry",
+                      static_cast<unsigned>(length), get_available_payload_size());
             return LinkError::PAYLOAD_TOO_LARGE;
         }
 
@@ -342,14 +363,37 @@ public:
             return 0U;
         }
 
-        uint8_t max_size = 0U;
-        uint8_t unused_size = 0U;
+        uint8_t next_size = 0U;
+        uint8_t rate_ceiling = 0U;
 
-        lorawan_get_payload_sizes(&max_size, &unused_size);
+        // The order of these two matters and is easy to get backwards. Zephyr
+        // declares them as (max_next_payload_size, max_payload_size): the first
+        // is what the next packet can carry after MAC traffic takes its share,
+        // the second is what the current data rate allows. This function is the
+        // ceiling, so it is the second.
+        lorawan_get_payload_sizes(&next_size, &rate_ceiling);
 
         // A network that reports nothing gets the conservative floor rather
         // than an optimistic guess.
-        return (max_size > 0U) ? max_size : CONSERVATIVE_MAX_PAYLOAD;
+        return (rate_ceiling > 0U) ? rate_ceiling : CONSERVATIVE_MAX_PAYLOAD;
+    }
+
+    uint8_t get_available_payload_size() const override
+    {
+        if (!m_is_joined)
+        {
+            return 0U;
+        }
+
+        uint8_t next_size = 0U;
+        uint8_t rate_ceiling = 0U;
+
+        lorawan_get_payload_sizes(&next_size, &rate_ceiling);
+
+        // Zero is a legitimate answer here, unlike above: it means this packet
+        // is entirely spoken for by MAC commands. Substituting a floor would
+        // build a fragment the stack then refuses.
+        return next_size;
     }
 
     uint8_t get_max_uplinks_per_dispatch() const override

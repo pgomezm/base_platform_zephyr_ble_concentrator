@@ -236,6 +236,33 @@ menu "Per-installation values"
 # Nothing is compiled in that the build does not use: src/config.hpp still
 # reads each group under its own #if, and the linker never sees the rest.
 
+config APP_LINK_LORA_INITIAL_DATARATE
+	int "US915 data rate to start at after joining, 0 to 4"
+	default 0
+	range 0 4
+	help
+	  A LoRaWAN session begins at whatever data rate this says, and ADR
+	  moves it from there. It is here because ADR restarts from scratch on
+	  every reboot: at DR0 the payload is 11 bytes against a 12 byte
+	  header, so the first cycles after a restart carry no data at all
+	  while the network works out how fast this node can talk. At a 900 s
+	  dispatch period that is roughly 45 minutes of empty frames after
+	  every power cut.
+
+	  0 is the safe default and the one to ship with when the site is
+	  unknown: the lowest rate is the one most likely to be heard, and
+	  ADR climbs from there.
+
+	  Raise it per installation once the link is measured. Read the uplink
+	  RSSI and SNR off the gateway (docs/BRINGUP.md): a node sitting at
+	  -60 dBm with 10 dB of SNR is nowhere near its limit and starts at
+	  DR3 without drama, which makes every reboot productive immediately.
+
+	  The cost of guessing high is real but self-correcting. A node too far
+	  away transmits where nobody hears it, and only recovers once its own
+	  ADR back-off gives up and steps down - which takes tens of uplinks.
+	  Do not raise this on a site you have not measured.
+
 config APP_LINK_LORA_JOIN_EUI
 	string "JoinEUI / AppEUI, 16 hex characters"
 	default "0102030405060708"

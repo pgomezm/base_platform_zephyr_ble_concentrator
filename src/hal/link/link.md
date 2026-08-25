@@ -13,7 +13,7 @@ slot.
 `hal::link::LinkFactory::get_instance()`, returning an `ILink`; on it
 `initialize()`, `connect()`, `is_connected()`, `send()`,
 `register_downlink_callback()`, `get_max_payload_size()`,
-`get_max_uplinks_per_dispatch()`.
+`get_available_payload_size()`, `get_max_uplinks_per_dispatch()`.
 
 ## Depends on
 
@@ -46,6 +46,38 @@ comments are written in transport-neutral terms.
 (242 B). A transport with no meaningful limit should report the largest fragment
 it wants to see rather than the largest it could carry, so `svc::comms`
 fragments the same way on both.
+
+## Two payload questions, not one
+
+`get_max_payload_size()` is the **ceiling**: what the current settings could
+carry if nothing else wanted the packet. `get_available_payload_size()` is the
+**budget**: what the next transmission will actually carry. On a socket they are
+the same number. On LoRaWAN they are not, because MAC traffic takes its bytes
+first — a `LinkADRAns` owed to the network server is in the packet whether the
+application likes it or not.
+
+They answer different questions and drive opposite remedies:
+
+| | answered by | when too small |
+| --- | --- | --- |
+| Is this link usable at all? | ceiling | permanent until something transmits — send an empty frame so the network can raise the rate |
+| How many records fit right now? | budget | temporary — skip the cycle, it passes on its own |
+
+Collapsing them into one number is a real bug and it was shipped once. The first
+time ADR raised the rate from DR0 to DR4, the reading taken 8 ms later still
+said 11 bytes. Read as a ceiling that means "unusable", so the firmware fired a
+probe it did not need and logged a warning blaming a data rate that had just
+become perfectly good. One wasted cycle, and a log line that pointed at the
+wrong thing — which is the more expensive of the two.
+
+Note the argument order in Zephyr's API, which invites exactly this mistake:
+
+```c
+void lorawan_get_payload_sizes(uint8_t *max_next_payload_size,  /* the budget  */
+                               uint8_t *max_payload_size);      /* the ceiling */
+```
+
+The budget comes first.
 
 ## How much a transport is willing to send at once
 

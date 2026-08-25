@@ -71,6 +71,8 @@ public:
 
     uint8_t get_max_payload_size() const override;
 
+    uint8_t get_available_payload_size() const override;
+
     uint8_t get_max_uplinks_per_dispatch() const override;
 
 protected:

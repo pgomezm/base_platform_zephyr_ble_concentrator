@@ -137,15 +137,35 @@ public:
     /// @param callback The function to call for each downlink
     virtual void register_downlink_callback(DownlinkCallback callback) = 0;
 
-    /// Maximum application payload the transport currently allows, in bytes
+    /// Largest application payload this transport's current settings allow
     ///
-    /// Queried rather than assumed, because on LoRaWAN it changes with the data
-    /// rate the network negotiates. svc::comms uses it to decide how many
-    /// records fit in a fragment; a transport with no meaningful limit reports
-    /// the largest fragment it wants to see and nothing has to special-case it.
+    /// The ceiling, not the budget: what the link could carry if nothing else
+    /// were competing for the packet. On LoRaWAN it is a property of the
+    /// negotiated data rate and nothing else.
     ///
-    /// @return The maximum payload size in bytes, or 0 if not connected
+    /// **This is the number that says whether the link is usable at all.** If
+    /// it cannot hold a header, no amount of waiting helps and svc::comms falls
+    /// back to an empty frame so the network can raise the rate.
+    ///
+    /// @return The ceiling in bytes, or 0 if not connected
     virtual uint8_t get_max_payload_size() const = 0;
+
+    /// Application payload the **next** transmission can actually carry
+    ///
+    /// At or below get_max_payload_size(), and lower whenever something outside
+    /// the application's control is riding along in the same packet. On LoRaWAN
+    /// that is MAC traffic: a LinkADRAns owed to the network server takes its
+    /// bytes before the application gets any.
+    ///
+    /// **This is the number that sizes a fragment.** Confusing it with the
+    /// ceiling is a real bug and it was made once: a data rate that had just
+    /// been raised still read as 11 bytes for one cycle, which looked like an
+    /// unusable link and triggered a probe that was not needed. A squeeze on
+    /// one packet is temporary and costs a cycle; an unusable data rate is
+    /// permanent until something transmits.
+    ///
+    /// @return What fits in the next packet, in bytes, or 0 if not connected
+    virtual uint8_t get_available_payload_size() const = 0;
 
     /// Maximum number of uplinks this transport accepts in one dispatch cycle
     ///
