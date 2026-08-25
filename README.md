@@ -120,12 +120,38 @@ that shifts does not fail the build, it produces a controller that never answers
 
 ## Build
 
-This has been built successfully against **Zephyr v4.4.1** with **Zephyr SDK 1.0.1**. Result:
+Three variants build from this repository. All three have been built against **Zephyr v4.4.1**
+with **Zephyr SDK 1.0.1**:
+
+| variant | board | flash | RAM |
+| --- | --- | --- | --- |
+| LoRaWAN (default) | nRF52840 DK + inAir9 | 137184 B / 1 MB (13.08%) | 56112 B / 256 KB (21.41%) |
+| TCP | nRF52840 DK + W5500 | 137936 B / 1 MB (13.15%) | 69520 B / 256 KB (26.52%) |
+| Wi-Fi | ESP32-S3-DevKitC-1 | 653876 B / 8 MB (7.80%) | 250112 B / 390 KB DRAM (62.67%) |
+
+The ESP32 figure is the one to watch, and it is DRAM rather than flash: about 80 KB of that is the
+system heap Espressif's Wi-Fi and Bluetooth drivers declare. See the comment in `prj.conf`.
+
+### The short way
+
+On Windows, `tools/` has a script per variant. Each one activates the workspace virtualenv, moves
+to the repository root and runs the right `west` invocation, so none of the flags below have to be
+remembered:
 
 ```
-FLASH:  120084 B / 1 MB    (11.45%)
-RAM:     54704 B / 256 KB  (20.87%)
+tools\lora-build.bat            tools\wifi-build.bat
+tools\lora-flash.bat            tools\wifi-flash.bat
+                                 tools\wifi-monitor.bat
 ```
+
+Add `pristine` to either build script to build from scratch, which is what a change to `Kconfig`,
+`prj.conf` or a devicetree overlay usually needs:
+
+```
+tools\lora-build.bat pristine
+```
+
+The rest of this section is what those scripts do and why, which is worth reading once.
 
 This repo is a **west manifest repo**: `west.yml` pins Zephyr v4.4.1 and declares `self: path: .`.
 It therefore has to live *inside* a west workspace, not be one. Cloning it on its own and running
