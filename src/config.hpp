@@ -104,6 +104,44 @@ constexpr const char* LINK_TCP_GATEWAY = CONFIG_APP_LINK_TCP_GATEWAY;
 
 #endif // CONFIG_APP_LINK_TCP
 
+#if defined(CONFIG_APP_LINK_WIFI)
+
+/// SSID of the access point to associate with.
+constexpr const char* LINK_WIFI_SSID = CONFIG_APP_LINK_WIFI_SSID;
+
+/// Pre-shared key of the access point, or an empty string for an open network.
+///
+/// A credential. The Kconfig default is deliberately empty: override it from a
+/// gitignored prj_local.conf, the same place the LoRa keys live.
+constexpr const char* LINK_WIFI_PSK = CONFIG_APP_LINK_WIFI_PSK;
+
+/// IPv4 address of the uplink server, as a dotted quad.
+constexpr const char* LINK_WIFI_SERVER_ADDR = CONFIG_APP_LINK_WIFI_SERVER_ADDR;
+
+/// TCP port of the uplink server.
+constexpr uint16_t LINK_WIFI_SERVER_PORT = CONFIG_APP_LINK_WIFI_SERVER_PORT;
+
+/// How long a connection attempt may take before it is called a failure.
+constexpr uint32_t LINK_WIFI_CONNECT_TIMEOUT_MS = CONFIG_APP_LINK_WIFI_CONNECT_TIMEOUT_MS;
+
+/// Largest uplink fragment handed to the transport, in bytes.
+constexpr uint16_t LINK_WIFI_MAX_FRAGMENT = CONFIG_APP_LINK_WIFI_MAX_FRAGMENT;
+
+#if !defined(CONFIG_APP_LINK_WIFI_USE_DHCP)
+
+/// Static IPv4 address of this concentrator, as a dotted quad.
+constexpr const char* LINK_WIFI_LOCAL_IP = CONFIG_APP_LINK_WIFI_LOCAL_IP;
+
+/// Static netmask, as a dotted quad.
+constexpr const char* LINK_WIFI_NETMASK = CONFIG_APP_LINK_WIFI_NETMASK;
+
+/// Static default gateway, as a dotted quad.
+constexpr const char* LINK_WIFI_GATEWAY = CONFIG_APP_LINK_WIFI_GATEWAY;
+
+#endif // !CONFIG_APP_LINK_WIFI_USE_DHCP
+
+#endif // CONFIG_APP_LINK_WIFI
+
 #if defined(CONFIG_APP_LINK_LORA)
 
 /// US915 frequency sub-band the gateway listens on, 1 to 8.

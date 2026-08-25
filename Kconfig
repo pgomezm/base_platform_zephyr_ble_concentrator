@@ -26,6 +26,19 @@ config APP_LINK_LORA
 	select LORA
 	select LORA_SX127X
 	select LORAWAN
+	# The stack stores its MAC context in settings, which is what carries the
+	# DevNonce over a reboot. From LoRaWAN 1.0.4 an OTAA join must present a
+	# DevNonce higher than the last one the join server saw for that DevEUI, so
+	# a device that restarts at zero has its join refused as a replay - a join
+	# that used to work and now silently does not. These were in prj.conf,
+	# where they were also switched on for builds that have no LoRa stack to
+	# store anything.
+	select FLASH
+	select FLASH_MAP
+	select NVS
+	select SETTINGS
+	select SETTINGS_NVS
+	select LORAWAN_NVM_SETTINGS
 	help
 	  Uplinks go out over LoRaWAN through an SX127x radio described in the
 	  board overlay under the lora0 alias.
@@ -42,6 +55,35 @@ config APP_LINK_TCP
 	  Uplinks go out over a TCP connection to a fixed server. The network
 	  interface comes from the board: an integrated MAC on a Nucleo, or an
 	  SPI Ethernet controller such as a W5500 on a board without one.
+
+config APP_LINK_WIFI
+	bool "Wi-Fi"
+	select NETWORKING
+	select NET_IPV4
+	select NET_TCP
+	select NET_SOCKETS
+	select NET_MGMT
+	select NET_MGMT_EVENT
+	select WIFI
+	select NET_L2_WIFI_MGMT
+	help
+	  Uplinks go out over a TCP connection carried by Wi-Fi. The socket is
+	  the same one the TCP backend uses - the two share
+	  hal/link/socket/ - and the only difference is associating with an
+	  access point first.
+
+	  Built for the ESP32-S3-DevKitC-1. Two things about that part are
+	  worth knowing before choosing this over the wired variant:
+
+	  Wi-Fi and Bluetooth share one 2.4 GHz radio. The scanner goes deaf
+	  while Wi-Fi transmits, which is a silicon-level compromise against
+	  the rule in docs/ARCHITECTURE.md section 4 that nothing may delay
+	  the radio. The nRF52840 plus a wired interface does not have it.
+
+	  The Espressif Wi-Fi driver needs a system heap, and it declares how
+	  much through HEAP_MEM_POOL_ADD_SIZE_ESP_WIFI. Zephyr provisions
+	  exactly that. Nothing in this firmware allocates either way; see
+	  prj.conf.
 
 endchoice
 
@@ -193,6 +235,81 @@ config APP_LINK_TCP_MAX_FRAGMENT
 	  built here is always one a LoRa build could also have sent.
 
 endif # APP_LINK_TCP
+
+if APP_LINK_WIFI
+
+config APP_LINK_WIFI_SSID
+	string "SSID of the access point"
+	default "changeme"
+	help
+	  Up to 32 characters. Override it from a gitignored prj_local.conf,
+	  the same place the LoRa keys live, so a clone of this repository does
+	  not carry anyone's network.
+
+config APP_LINK_WIFI_PSK
+	string "Pre-shared key of the access point"
+	default ""
+	help
+	  8 to 64 characters for WPA2-PSK. An empty string means an open
+	  network, which is the only case where empty is a valid setting
+	  rather than a forgotten one.
+
+	  This is a credential. Put the real one in prj_local.conf.
+
+config APP_LINK_WIFI_USE_DHCP
+	bool "Obtain the IP address over DHCP"
+	default y
+	select NET_DHCPV4
+	help
+	  On by default here, unlike the wired backend. An access point is
+	  almost always handing out addresses already, and a Wi-Fi deployment
+	  is the one where nobody wants to reserve a static address per
+	  concentrator by hand.
+
+config APP_LINK_WIFI_LOCAL_IP
+	string "Static IP address of this concentrator"
+	default "192.168.1.50"
+	depends on !APP_LINK_WIFI_USE_DHCP
+
+config APP_LINK_WIFI_NETMASK
+	string "Static netmask"
+	default "255.255.255.0"
+	depends on !APP_LINK_WIFI_USE_DHCP
+
+config APP_LINK_WIFI_GATEWAY
+	string "Static default gateway"
+	default "192.168.1.1"
+	depends on !APP_LINK_WIFI_USE_DHCP
+
+config APP_LINK_WIFI_SERVER_ADDR
+	string "IPv4 address of the uplink server"
+	default "192.168.1.10"
+	help
+	  Dotted-quad only. Resolving a name would make every uplink depend on
+	  a DNS server being reachable, which is one more thing to fail between
+	  this device and its data.
+
+config APP_LINK_WIFI_SERVER_PORT
+	int "TCP port of the uplink server"
+	default 5000
+	range 1 65535
+
+config APP_LINK_WIFI_CONNECT_TIMEOUT_MS
+	int "Milliseconds to wait for the TCP connection to establish"
+	default 5000
+	range 100 60000
+
+config APP_LINK_WIFI_MAX_FRAGMENT
+	int "Largest uplink fragment handed to the transport, in bytes"
+	default 242
+	range 32 242
+	help
+	  Wi-Fi imposes no such limit, but reporting one keeps svc::comms
+	  fragmenting exactly as it does on LoRaWAN, so the uplink wire format
+	  and the fragmentation path are identical on all three variants and
+	  only one of them has to be tested.
+
+endif # APP_LINK_WIFI
 
 config APP_MAX_DEVICES
 	int "Maximum endpoint devices tracked at once"
