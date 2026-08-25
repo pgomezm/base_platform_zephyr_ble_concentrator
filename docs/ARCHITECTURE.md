@@ -40,9 +40,14 @@ Locked decisions carried over from v3 unchanged:
 
 Runs on one Nordic nRF52840 DevKit. Passively scans for BLE endpoint devices
 (`base_platform_baremetal_ble` nodes) advertising their Eddystone custom frame in a room, keeps a
-table of their last-seen sensor data, and every 15 minutes dispatches everything collected as one
-or more LoRaWAN uplinks — fragmenting into multiple packets only if the current data rate's airtime
-budget can't fit it all in one.
+table of their last-seen sensor data, and every 15 minutes dispatches what it has collected.
+
+The table holds the **last value per device**, not a history. That single decision is what makes
+the rest of the dispatch design work: a device left out of one cycle loses nothing, because the
+next cycle sends it with a fresher reading. So a cycle is not obliged to empty the table. On
+LoRaWAN a cycle is **one transmission** — several packets back to back from one node is airtime it
+is not entitled to — and a cursor remembers where to resume, so a full pass takes as many cycles
+as it takes. On TCP there is nothing to ration and a cycle sends everything. See §5.
 
 ## 2. Reference: what the sensor transmits (locked to Eddystone)
 
@@ -202,6 +207,26 @@ these**, and note US915 also has a dwell-time rule that can shrink DR0/DR1 furth
 If DR0 really can't carry even one record, `comms` needs a floor — either force a minimum data
 rate via ADR configuration, or explicitly treat "can't send anything at this DR" as a wait state
 rather than an infinite fragment loop.
+
+**Resolved: it is a wait state.** `comms` skips the cycle and logs it. Confirmed on hardware — a
+join succeeds, ADR settles at DR0 because the link budget is bad, and every dispatch logs
+`dispatch skipped`. The guard is behaving correctly; what is wrong is the antenna, not the
+firmware. See `docs/BRINGUP.md`.
+
+**Also resolved: how many packets one cycle may send.** The table above answers how *big* a packet
+may be, which is not the same as how *many* may leave at once. `hal::link` answers that separately
+through `get_max_uplinks_per_dispatch()` — 1 on LoRaWAN, unbounded on TCP — and `comms` sends the
+smaller of "fragments needed" and "fragments allowed", resuming next cycle from where it stopped.
+
+The number that matters operationally is not the packet count but the resulting report interval:
+with 30 devices at DR3 (15 records/fragment) a pass takes two cycles, so a given device is reported
+every 30 minutes rather than every 15. Shorten `APP_DISPATCH_PERIOD_MIN` or fix the link budget;
+raising `APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH` trades a duty-cycle problem for a latency one and
+should not be done without measuring the airtime.
+
+Note the header is **12 bytes**, not the 11 written above: a `flags` byte was added for the boot
+marker in §6. At DR0 that is the difference between 0 and 0 records, so it changes nothing there,
+but the table's "leaves room for" column is one byte optimistic at every rate.
 
 ## 6. State machine
 

@@ -339,6 +339,11 @@ public:
         return (max_size > 0U) ? max_size : CONSERVATIVE_MAX_PAYLOAD;
     }
 
+    uint8_t get_max_uplinks_per_dispatch() const override
+    {
+        return config::LINK_LORA_MAX_UPLINKS_PER_DISPATCH;
+    }
+
 private:
     /// Fill the DevEUI, either from the SoC or from Kconfig.
     ///

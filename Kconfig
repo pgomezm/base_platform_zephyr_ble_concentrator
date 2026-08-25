@@ -108,6 +108,24 @@ config APP_LINK_LORA_DEV_EUI
 	default "0000000000000000"
 	depends on !APP_LINK_LORA_DEV_EUI_FROM_HWINFO
 
+config APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH
+	int "Uplinks sent per dispatch cycle"
+	default 1
+	range 1 8
+	help
+	  How many LoRaWAN transmissions one dispatch cycle may make. Every
+	  fragment of an uplink is a separate transmission: at DR0 a single
+	  11 byte packet already holds the channel for roughly a quarter of a
+	  second, so a table fragmented across eight packets is seconds of
+	  continuous airtime from one node. That is what gets a device
+	  throttled by the network server, or refused outright wherever a duty
+	  cycle is enforced.
+
+	  Leave this at 1 unless there is a measured reason not to. Devices
+	  that do not fit in a cycle are not dropped: the table holds the last
+	  value per device, so they go out in the next cycle with a fresher
+	  reading. The cost of a low number here is latency, not data.
+
 endif # APP_LINK_LORA
 
 if APP_LINK_TCP
@@ -207,9 +225,12 @@ config APP_DISPATCH_PERIOD_MIN
 	default 15
 	range 1 1440
 	help
-	  How often the collected readings are sent. Every device heard from
-	  since the last dispatch goes out in one cycle, fragmented across as
-	  many packets as the current LoRa data rate requires.
+	  How often the collected readings are sent. A cycle reports as many
+	  devices as fit in the packets the transport allows it to send, and
+	  the next cycle resumes where it stopped. With a transport that caps
+	  uplinks per cycle, the interval between two reports of the same
+	  device is therefore this period times the number of cycles a full
+	  pass over the table takes.
 
 config APP_DEVICE_STALE_AFTER_S
 	int "Seconds after which a silent device is considered stale"

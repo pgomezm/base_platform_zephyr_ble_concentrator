@@ -100,6 +100,13 @@ constexpr const char* LINK_TCP_GATEWAY = CONFIG_APP_LINK_TCP_GATEWAY;
 /// US915 frequency sub-band the gateway listens on, 1 to 8.
 constexpr uint8_t LINK_LORA_SUBBAND = CONFIG_APP_LINK_LORA_SUBBAND;
 
+/// Number of LoRaWAN transmissions one dispatch cycle may make.
+///
+/// Every uplink fragment is its own transmission, and several back to back is
+/// airtime a single node is not entitled to. See the Kconfig help.
+constexpr uint8_t LINK_LORA_MAX_UPLINKS_PER_DISPATCH =
+    CONFIG_APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH;
+
 /// JoinEUI / AppEUI, as 16 hex characters. Not a secret.
 constexpr const char* LINK_LORA_JOIN_EUI = CONFIG_APP_LINK_LORA_JOIN_EUI;
 

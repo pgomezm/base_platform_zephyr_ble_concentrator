@@ -266,6 +266,13 @@ public:
         return static_cast<uint8_t>(config::LINK_TCP_MAX_FRAGMENT);
     }
 
+    uint8_t get_max_uplinks_per_dispatch() const override
+    {
+        // No airtime to ration and no duty cycle to respect, so a dispatch
+        // that needs several fragments sends all of them in the same cycle.
+        return UINT8_MAX;
+    }
+
 private:
     void close_socket()
     {

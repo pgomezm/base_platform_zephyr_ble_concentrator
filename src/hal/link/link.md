@@ -12,7 +12,8 @@ slot.
 
 `hal::link::LinkFactory::get_instance()`, returning an `ILink`; on it
 `initialize()`, `connect()`, `is_connected()`, `send()`,
-`register_downlink_callback()`, `get_max_payload_size()`.
+`register_downlink_callback()`, `get_max_payload_size()`,
+`get_max_uplinks_per_dispatch()`.
 
 ## Depends on
 
@@ -46,11 +47,35 @@ comments are written in transport-neutral terms.
 it wants to see rather than the largest it could carry, so `svc::comms`
 fragments the same way on both.
 
+## How much a transport is willing to send at once
+
+`get_max_payload_size()` answers "how big may one packet be". It does not answer
+"how many packets may I send right now", and those are different questions on a
+radio.
+
+A dispatch that needs four fragments used to send four packets back to back,
+because nothing said it could not. Over TCP that is free. Over LoRaWAN it is
+four separate transmissions from one node with no gap between them: at DR0 a
+single 11-byte packet already holds the channel for roughly a quarter of a
+second, so a full table is seconds of continuous airtime. That is what gets a
+device throttled by the network server, and refused outright wherever a duty
+cycle is enforced.
+
+`get_max_uplinks_per_dispatch()` is the second question, asked separately. The
+LoRa backend answers 1 by default; the TCP backend answers `UINT8_MAX`. The
+limit lives here rather than in `svc::comms` because it is a property of the
+transport, not of the data.
+
+What makes it safe to defer the rest is the shape of the device table: it holds
+the **last value per device**, so a record not sent this cycle goes out in the
+next one carrying a fresher reading than the one it replaced. The cost of a low
+limit is latency, not data. None of this would hold if the table kept history.
+
 ## Backends
 
 | backend | source | selected by | status |
 | --- | --- | --- | --- |
-| LoRaWAN | `lora/link_lora.cpp` | `CONFIG_APP_LINK_LORA` (default) | `connect()` still returns `CONNECT_ERROR`; the join mode is undecided, see open item 1 |
+| LoRaWAN | `lora/link_lora.cpp` | `CONFIG_APP_LINK_LORA` (default) | OTAA join verified against a MultiTech Conduit; uplink still blocked by the antenna, see `docs/BRINGUP.md` |
 | TCP | `tcp/link_tcp.cpp` | `CONFIG_APP_LINK_TCP` | compiles; never run against real hardware |
 
 `CMakeLists.txt` compiles exactly one, and the Kconfig choice also selects the
