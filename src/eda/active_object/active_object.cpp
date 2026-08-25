@@ -9,7 +9,7 @@
 #include "eda/port/port.hpp"
 #include "utils/log/log.hpp"
 
-LOG_MODULE_REGISTER(eda, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(eda);
 
 namespace eda
 {
@@ -42,7 +42,7 @@ void ActiveObject::post_event(Port& port, uint32_t event_id, uint32_t opt_data_a
     {
         // TODO: handle full queue
         ++s_dropped_event_count;
-        LOG_MODULE_WARN("event queue full, dropped event_id=%u", event_id);
+        LOG_WARNING("event queue full, dropped event_id=%u", event_id);
     }
 }
 

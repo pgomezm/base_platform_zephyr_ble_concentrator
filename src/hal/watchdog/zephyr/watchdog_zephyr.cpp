@@ -6,12 +6,12 @@
 /// Source file that implements the watchdog HAL on Zephyr's watchdog driver.
 
 #include "hal/watchdog/watchdog.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/watchdog.h>
-#include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(hal_watchdog, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(hal_watchdog);
 
 namespace hal::watchdog
 {
@@ -33,20 +33,20 @@ public:
         // than silently ignoring the second call.
         if (m_channel_id >= 0)
         {
-            LOG_WRN("watchdog already running with a %u ms timeout", m_timeout_ms);
+            LOG_WARNING("watchdog already running with a %u ms timeout", m_timeout_ms);
             return WatchdogError::ALREADY_RUNNING;
         }
 
         if ((timeout_ms < MIN_TIMEOUT_MS) || (timeout_ms > MAX_TIMEOUT_MS))
         {
-            LOG_ERR("timeout %u ms is outside [%u, %u]", timeout_ms, MIN_TIMEOUT_MS,
+            LOG_ERROR("timeout %u ms is outside [%u, %u]", timeout_ms, MIN_TIMEOUT_MS,
                     MAX_TIMEOUT_MS);
             return WatchdogError::INVALID_TIMEOUT;
         }
 
         if (!device_is_ready(s_p_watchdog_device))
         {
-            LOG_ERR("watchdog device not ready");
+            LOG_ERROR("watchdog device not ready");
             return WatchdogError::HARDWARE_ERROR;
         }
 
@@ -59,7 +59,7 @@ public:
 
         if (channel_id < 0)
         {
-            LOG_ERR("wdt_install_timeout failed (%d)", channel_id);
+            LOG_ERROR("wdt_install_timeout failed (%d)", channel_id);
             return WatchdogError::HARDWARE_ERROR;
         }
 
@@ -67,14 +67,14 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("wdt_setup failed (%d)", result);
+            LOG_ERROR("wdt_setup failed (%d)", result);
             return WatchdogError::HARDWARE_ERROR;
         }
 
         m_channel_id = channel_id;
         m_timeout_ms = timeout_ms;
 
-        LOG_INF("watchdog started with a %u ms timeout", timeout_ms);
+        LOG_INFO("watchdog started with a %u ms timeout", timeout_ms);
 
         return WatchdogError::NO_ERROR;
     }

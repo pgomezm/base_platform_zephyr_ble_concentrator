@@ -21,10 +21,9 @@
 #include "svc/comms/subsystem.hpp"
 #include "svc/device_table/subsystem.hpp"
 #include "svc/system_diagnostics/subsystem.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(app);
 
 namespace app
 {
@@ -40,7 +39,7 @@ App& App::get_instance()
 
 void App::initialize()
 {
-    LOG_INF("base_platform_zephyr_ble_concentrator starting");
+    LOG_INFO("base_platform_zephyr_ble_concentrator starting");
 
     // Wire the idle hook once, here, since app owns overall bring-up order.
     // No callback is registered by default: see eda::IdleHook and
@@ -73,19 +72,19 @@ void App::initialize()
 
     if (!svc::acquisition::initialize())
     {
-        LOG_ERR("acquisition service failed to initialize");
+        LOG_ERROR("acquisition service failed to initialize");
         services_ready = false;
     }
 
     if (services_ready && !svc::comms::initialize())
     {
-        LOG_ERR("comms service failed to initialize");
+        LOG_ERROR("comms service failed to initialize");
         services_ready = false;
     }
 
     if (services_ready && !svc::system_diagnostics::initialize())
     {
-        LOG_ERR("system diagnostics failed to initialize");
+        LOG_ERROR("system diagnostics failed to initialize");
         services_ready = false;
     }
 

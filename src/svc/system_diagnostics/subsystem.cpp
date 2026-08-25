@@ -16,10 +16,9 @@
 #include "hal/watchdog/watchdog.hpp"
 #include "svc/acquisition/subsystem.hpp"
 #include "svc/device_table/subsystem.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_REGISTER(svc_system_diagnostics, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(svc_system_diagnostics);
 
 namespace svc::system_diagnostics
 {
@@ -67,7 +66,7 @@ uint32_t s_heartbeat_count = 0U;
 /// Log the counters that say whether the concentrator is keeping up.
 void log_health()
 {
-    LOG_INF("health: %u devices tracked, %u reports dropped, %u devices evicted",
+    LOG_INFO("health: %u devices tracked, %u reports dropped, %u devices evicted",
             device_table::get_device_count(), acquisition::get_dropped_report_count(),
             device_table::get_evicted_count());
 }
@@ -82,12 +81,12 @@ bool initialize()
     if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS) !=
         hal::watchdog::WatchdogError::NO_ERROR)
     {
-        LOG_WRN("watchdog unavailable, continuing without it");
+        LOG_WARNING("watchdog unavailable, continuing without it");
     }
 
     s_heartbeat_timer.start();
 
-    LOG_INF("system diagnostics ready");
+    LOG_INFO("system diagnostics ready");
 
     return true;
 }
@@ -119,7 +118,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
 
     case Event::INVALID:
     default:
-        LOG_WRN("unhandled event id %u", event_id);
+        LOG_WARNING("unhandled event id %u", event_id);
         break;
     }
 }

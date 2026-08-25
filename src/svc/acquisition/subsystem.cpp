@@ -16,13 +16,12 @@
 #include "eda/port/port.hpp"
 #include "hal/ble/ble.hpp"
 #include "hal/system/system.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-
 #include <string.h>
 
-LOG_MODULE_REGISTER(svc_acquisition, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(svc_acquisition);
 
 namespace svc::acquisition
 {
@@ -178,7 +177,7 @@ bool initialize()
 
     hal::ble::BleFactory::get_instance().register_adv_report_callback(on_adv_report);
 
-    LOG_INF("acquisition service ready, pool depth %u", config::ADV_REPORT_POOL_SIZE);
+    LOG_INFO("acquisition service ready, pool depth %u", config::ADV_REPORT_POOL_SIZE);
 
     return true;
 }
@@ -213,7 +212,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
 
     case Event::INVALID:
     default:
-        LOG_WRN("unhandled event id %u", event_id);
+        LOG_WARNING("unhandled event id %u", event_id);
         break;
     }
 }

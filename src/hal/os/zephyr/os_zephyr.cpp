@@ -11,7 +11,7 @@
 
 #include <zephyr/kernel.h>
 
-LOG_MODULE_REGISTER(hal_os, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(hal_os);
 
 namespace hal::os
 {
@@ -109,7 +109,7 @@ void Thread::create(ThreadEntry entry, void* p_arg, Priority priority, const cha
         // Every caller in this firmware is known at link time (see
         // MAX_THREADS above), so this can only mean the pool constant fell
         // out of sync with the number of active objects created.
-        LOG_MODULE_ERR("hal::os thread stack pool exhausted");
+        LOG_ERROR("hal::os thread stack pool exhausted");
         return;
     }
 

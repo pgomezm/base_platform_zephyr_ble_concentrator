@@ -15,10 +15,9 @@
 #include "hal/system/system.hpp"
 #include "svc/acquisition/port.hpp"
 #include "svc/comms/port.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_DECLARE(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(app);
 
 namespace app
 {
@@ -31,7 +30,7 @@ void StartupState::entry()
 {
     const hal::system::ResetReason reason = hal::system::get_reset_reason();
 
-    LOG_INF("startup, reset reason %u", static_cast<unsigned>(reason));
+    LOG_INFO("startup, reset reason %u", static_cast<unsigned>(reason));
 
     // Collecting and reporting are independent, and scanning starts here so it
     // stays that way. The concentrator's job on the BLE side is to hear
@@ -70,14 +69,14 @@ void StartupState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
     case Event::NETWORK_JOIN_FAILED:
         // Recoverable: the network may simply not be reachable yet. The soft
         // error state retries rather than giving up on the first attempt.
-        LOG_WRN("network join failed");
+        LOG_WARNING("network join failed");
         App::get_instance().get_state_machine().transition_to(StateId::SOFT_ERROR);
         break;
 
     case Event::SERVICES_FAILED:
         // A service that will not initialize is not going to start working on
         // its own, so this one does not retry.
-        LOG_ERR("a service failed to initialize");
+        LOG_ERROR("a service failed to initialize");
         App::get_instance().get_state_machine().transition_to(StateId::HARD_ERROR);
         break;
 

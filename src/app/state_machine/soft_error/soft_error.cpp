@@ -15,10 +15,9 @@
 #include "eda/port/port.hpp"
 #include "hal/led/led.hpp"
 #include "svc/comms/port.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_DECLARE(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(app);
 
 namespace app
 {
@@ -41,7 +40,7 @@ void SoftErrorState::entry()
 
     ++s_consecutive_errors;
 
-    LOG_WRN("soft error %u of %u", s_consecutive_errors, app::MAX_CONSECUTIVE_SOFT_ERRORS);
+    LOG_WARNING("soft error %u of %u", s_consecutive_errors, app::MAX_CONSECUTIVE_SOFT_ERRORS);
 
     if (s_consecutive_errors >= app::MAX_CONSECUTIVE_SOFT_ERRORS)
     {

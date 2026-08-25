@@ -14,10 +14,9 @@
 #include "eda/port/port.hpp"
 #include "svc/acquisition/port.hpp"
 #include "svc/comms/subsystem.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_DECLARE(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(app);
 
 namespace app
 {
@@ -39,7 +38,7 @@ void ListeningState::entry()
     // that already has one.
     svc::comms::start_dispatch_timer();
 
-    LOG_INF("listening for endpoint advertisements");
+    LOG_INFO("listening for endpoint advertisements");
 }
 
 void ListeningState::exit()

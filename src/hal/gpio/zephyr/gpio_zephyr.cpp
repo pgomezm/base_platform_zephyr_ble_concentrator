@@ -6,11 +6,11 @@
 /// Source file that implements the GPIO HAL on Zephyr's GPIO driver.
 
 #include "hal/gpio/gpio.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(hal_gpio, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(hal_gpio);
 
 namespace hal::gpio
 {
@@ -55,13 +55,13 @@ public:
     {
         if (!gpio_is_ready_dt(&m_spec))
         {
-            LOG_ERR("GPIO not ready");
+            LOG_ERROR("GPIO not ready");
             return false;
         }
 
         if (gpio_pin_configure_dt(&m_spec, GPIO_OUTPUT_INACTIVE) != 0)
         {
-            LOG_ERR("failed to configure GPIO as output");
+            LOG_ERROR("failed to configure GPIO as output");
             return false;
         }
 

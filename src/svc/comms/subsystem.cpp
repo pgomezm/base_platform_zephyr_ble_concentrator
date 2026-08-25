@@ -19,12 +19,11 @@
 #include "hal/system/system.hpp"
 #include "svc/acquisition/subsystem.hpp"
 #include "svc/device_table/subsystem.hpp"
-
-#include <zephyr/logging/log.h>
+#include "utils/log/log.hpp"
 
 #include <string.h>
 
-LOG_MODULE_REGISTER(svc_comms, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(svc_comms);
 
 namespace svc::comms
 {
@@ -159,7 +158,7 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 
     if (result != hal::link::LinkError::NO_ERROR)
     {
-        LOG_ERR("fragment %u/%u failed to send", fragment_index + 1U, fragment_count);
+        LOG_ERROR("fragment %u/%u failed to send", fragment_index + 1U, fragment_count);
         return false;
     }
 
@@ -171,7 +170,7 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
         device_table::mark_reported(p_entries[index].address, p_entries[index].update_seq);
     }
 
-    LOG_INF("sent fragment %u/%u: %u records, %u bytes", fragment_index + 1U, fragment_count, count,
+    LOG_INFO("sent fragment %u/%u: %u records, %u bytes", fragment_index + 1U, fragment_count, count,
             static_cast<unsigned>(offset));
 
     return true;
@@ -192,7 +191,7 @@ void send_heartbeat_if_due()
 
     if (s_quiet_cycles < config::HEARTBEAT_AFTER_CYCLES)
     {
-        LOG_INF("nothing new to report (%u of %u quiet cycles)",
+        LOG_INFO("nothing new to report (%u of %u quiet cycles)",
                 static_cast<unsigned>(s_quiet_cycles),
                 static_cast<unsigned>(config::HEARTBEAT_AFTER_CYCLES));
         return;
@@ -212,7 +211,7 @@ void dispatch()
 {
     if (!hal::link::LinkFactory::get_instance().is_connected())
     {
-        LOG_WRN("dispatch skipped: not joined to a network");
+        LOG_WARNING("dispatch skipped: not joined to a network");
         return;
     }
 
@@ -223,7 +222,7 @@ void dispatch()
     // retry: the next cycle may negotiate a better rate.
     if (max_payload <= sizeof(UplinkHeader))
     {
-        LOG_WRN("dispatch skipped: %u byte payload cannot hold a %u byte header plus a record",
+        LOG_WARNING("dispatch skipped: %u byte payload cannot hold a %u byte header plus a record",
                 max_payload, static_cast<unsigned>(sizeof(UplinkHeader)));
         return;
     }
@@ -233,7 +232,7 @@ void dispatch()
 
     if (records_per_fragment == 0U)
     {
-        LOG_WRN("dispatch skipped: no room for a single record at this data rate");
+        LOG_WARNING("dispatch skipped: no room for a single record at this data rate");
         return;
     }
 
@@ -270,7 +269,7 @@ void dispatch()
 
     const uint8_t fragment_count = static_cast<uint8_t>(fragments_allowed);
 
-    LOG_INF("dispatch %u: %u devices pending, sending %u of %u fragments", s_sequence,
+    LOG_INFO("dispatch %u: %u devices pending, sending %u of %u fragments", s_sequence,
             static_cast<unsigned>(total_records), fragment_count,
             static_cast<unsigned>(fragments_needed));
 
@@ -306,7 +305,7 @@ void dispatch()
     // gone: it approximated fairness by position, and this is exact.
     if (all_sent && (sent_records < total_records))
     {
-        LOG_INF("%u devices deferred to the next cycle",
+        LOG_INFO("%u devices deferred to the next cycle",
                 static_cast<unsigned>(total_records - sent_records));
     }
 }
@@ -323,7 +322,7 @@ bool initialize()
         return false;
     }
 
-    LOG_INF("comms service ready, dispatch period %u min", config::DISPATCH_PERIOD_MIN);
+    LOG_INFO("comms service ready, dispatch period %u min", config::DISPATCH_PERIOD_MIN);
 
     return true;
 }
@@ -374,7 +373,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
 
     case Event::INVALID:
     default:
-        LOG_WRN("unhandled event id %u", event_id);
+        LOG_WARNING("unhandled event id %u", event_id);
         break;
     }
 }

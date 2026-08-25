@@ -301,6 +301,22 @@ constraint that isn't free to change — replaces the plain description table fr
   exactly one caller, `svc/system_diagnostics`: a module that refreshes from its own thread proves
   that one thread is alive, not that the firmware is.
 
+### `utils/log`
+
+- **Owns**: the mapping from the firmware's log macros to the platform's logging backend. It is the
+  only file in `src/` that includes `zephyr/logging/log.h`.
+- **Exposes**: `LOG_MODULE_DEFINE()`, `LOG_MODULE_USE()`, `LOG_ERROR()`, `LOG_WARNING()`,
+  `LOG_INFO()`, `LOG_DEBUG()` — the names `deepsight-polaris-software` uses, so a file reads the
+  same in both repositories.
+- **Why it is macros and not polaris's `Logger` class**: Zephyr's logging is deferred, storing the
+  format string pointer and the arguments rather than formatted text, so nothing is formatted in
+  the caller's context. A function taking `(const char* fmt, ...)` cannot be deferred, so wrapping
+  the macros in a class would throw that away — and §4 says most of these call sites are on threads
+  that must not stall. The seam is polaris's interface over Zephyr's implementation. See
+  `src/utils/log/log.md`.
+- **Constraint**: no other file in `src/` may name a logging header, a log backend, or
+  `CONFIG_APP_LOG_LEVEL`. Same rule as `hal::os`, and for the same reason.
+
 ### `acquisition`
 
 - **Owns**: the BLE scan lifecycle and the Eddystone frame parser (§2). The only writer into

@@ -9,13 +9,12 @@
 
 #include "config.hpp"
 #include "hal/system/system.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-
 #include <string.h>
 
-LOG_MODULE_REGISTER(svc_device_table, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(svc_device_table);
 
 namespace svc::device_table
 {
@@ -95,7 +94,7 @@ Entry* claim_slot()
         ++s_evicted_count;
     }
 
-    LOG_WRN("table full, evicting the device last seen at %u s", p_oldest->last_seen_uptime_s);
+    LOG_WARNING("table full, evicting the device last seen at %u s", p_oldest->last_seen_uptime_s);
 
     return p_oldest;
 }
@@ -115,7 +114,7 @@ void initialize()
 
     k_mutex_unlock(&s_mutex);
 
-    LOG_INF("device table ready, capacity %u", config::MAX_DEVICES);
+    LOG_INFO("device table ready, capacity %u", config::MAX_DEVICES);
 }
 
 void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
