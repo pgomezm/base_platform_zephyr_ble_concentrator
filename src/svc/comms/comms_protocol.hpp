@@ -32,6 +32,16 @@ enum class UplinkFlags : uint8_t
     /// it the far end has to infer a reboot, which fails if it simply was not
     /// listening at the time.
     BOOT = 0x01U,
+
+    /// This uplink carries no records: the concentrator is alive and has
+    /// nothing new to report.
+    ///
+    /// Necessary because only devices with an unreported reading go out. A
+    /// quiet room therefore produces no uplink at all, and without this flag
+    /// "nothing changed" and "the concentrator is dead" look identical from the
+    /// far end. `record_count` is zero and the counters in the header are still
+    /// valid.
+    HEARTBEAT = 0x02U,
 };
 
 /// Header at the start of every uplink fragment.

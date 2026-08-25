@@ -127,10 +127,17 @@ void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
     if (p_entry == nullptr)
     {
         p_entry = claim_slot();
+
+        // Wipe before reuse. A recycled slot still holds the evicted device's
+        // sequence counters, and inheriting them would make the new device look
+        // as though its first reading had already been reported.
+        *p_entry = Entry{};
+
         memcpy(p_entry->address, p_address, hal::ble::ADDRESS_SIZE);
         p_entry->in_use = true;
     }
 
+    ++p_entry->update_seq;
     p_entry->rssi = rssi;
     p_entry->reading = reading;
     p_entry->last_seen_uptime_s = hal::system::get_uptime_seconds();
@@ -170,6 +177,13 @@ size_t snapshot(Entry* p_out, size_t max_entries)
             continue;
         }
 
+        // Nothing new since the last successful uplink. Repeating the entry
+        // would cost airtime to restate what the far end already has.
+        if (entry.update_seq == entry.reported_seq)
+        {
+            continue;
+        }
+
         p_out[written] = entry;
         ++written;
     }
@@ -177,6 +191,25 @@ size_t snapshot(Entry* p_out, size_t max_entries)
     k_mutex_unlock(&s_mutex);
 
     return written;
+}
+
+void mark_reported(const uint8_t* p_address, uint16_t update_seq)
+{
+    k_mutex_lock(&s_mutex, K_FOREVER);
+
+    Entry* const p_entry = find_entry(p_address);
+
+    // Only when the entry has not moved on. A higher sequence means a reading
+    // arrived while the uplink was in flight, and marking it delivered here
+    // would drop that reading until the device next advertises. An entry that
+    // vanished entirely - evicted while the uplink was in flight - is simply
+    // not found, and there is nothing to mark.
+    if ((p_entry != nullptr) && (p_entry->update_seq == update_seq))
+    {
+        p_entry->reported_seq = update_seq;
+    }
+
+    k_mutex_unlock(&s_mutex);
 }
 
 uint16_t get_device_count()

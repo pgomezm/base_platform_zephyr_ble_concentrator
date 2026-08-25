@@ -42,12 +42,19 @@ Runs on one Nordic nRF52840 DevKit. Passively scans for BLE endpoint devices
 (`base_platform_baremetal_ble` nodes) advertising their Eddystone custom frame in a room, keeps a
 table of their last-seen sensor data, and every 15 minutes dispatches what it has collected.
 
-The table holds the **last value per device**, not a history. That single decision is what makes
-the rest of the dispatch design work: a device left out of one cycle loses nothing, because the
-next cycle sends it with a fresher reading. So a cycle is not obliged to empty the table. On
-LoRaWAN a cycle is **one transmission** — several packets back to back from one node is airtime it
-is not entitled to — and a cursor remembers where to resume, so a full pass takes as many cycles
-as it takes. On TCP there is nothing to ration and a cycle sends everything. See §5.
+The table holds the **last value per device**, not a history. That single decision is what the rest
+of the dispatch design rests on, and it buys two things:
+
+1. **Only what changed goes out.** A device that has not advertised since its last successful
+   uplink has nothing to add, so it is skipped. Delivery is acknowledged after the transport
+   accepts the packet, not assumed at snapshot time.
+2. **A cycle is not obliged to empty the table.** A device left out loses nothing, because it is
+   still pending and the next cycle sends it with a fresher reading. On LoRaWAN a cycle is
+   therefore **one transmission** — several packets back to back from one node is airtime it is not
+   entitled to. On TCP there is nothing to ration and a cycle sends everything.
+
+The cost is that a quiet room produces no uplink at all, which from the far end looks exactly like
+a dead concentrator. A record-less heartbeat closes that gap. See §5.
 
 ## 2. Reference: what the sensor transmits (locked to Eddystone)
 
@@ -219,10 +226,19 @@ through `get_max_uplinks_per_dispatch()` — 1 on LoRaWAN, unbounded on TCP — 
 smaller of "fragments needed" and "fragments allowed", resuming next cycle from where it stopped.
 
 The number that matters operationally is not the packet count but the resulting report interval:
-with 30 devices at DR3 (15 records/fragment) a pass takes two cycles, so a given device is reported
-every 30 minutes rather than every 15. Shorten `APP_DISPATCH_PERIOD_MIN` or fix the link budget;
-raising `APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH` trades a duty-cycle problem for a latency one and
-should not be done without measuring the airtime.
+with 30 pending devices at DR3 (15 records/fragment) a pass takes two cycles, so a given device can
+be reported every 30 minutes rather than every 15. Shorten `APP_DISPATCH_PERIOD_MIN` or fix the
+link budget; raising `APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH` trades a duty-cycle problem for a
+latency one and should not be done without measuring the airtime.
+
+Nothing tracks where a cycle stopped. A record is acknowledged only once the fragment carrying it
+was accepted, so whatever did not go out is still pending and the next snapshot leads with it —
+exact rather than approximate fairness, and one less piece of state.
+
+**Silence is not free.** Reporting only what changed means an idle room sends nothing, which at the
+far end is indistinguishable from a failed device. After `APP_HEARTBEAT_AFTER_CYCLES` quiet cycles
+(default 4) the concentrator sends a header with no records and the `HEARTBEAT` flag set, carrying
+the dropped-report and eviction counters. It is 12 bytes, so it fits at every data rate above DR0.
 
 Note the header is **12 bytes**, not the 11 written above: a `flags` byte was added for the boot
 marker in §6. At DR0 that is the difference between 0 and 0 records, so it changes nothing there,

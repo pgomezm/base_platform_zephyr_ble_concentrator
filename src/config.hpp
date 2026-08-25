@@ -53,6 +53,12 @@ constexpr uint32_t DISPATCH_PERIOD_MS = DISPATCH_PERIOD_MIN * 60U * 1000U;
 /// eviction when the table is full.
 constexpr uint32_t DEVICE_STALE_AFTER_S = CONFIG_APP_DEVICE_STALE_AFTER_S;
 
+/// Consecutive dispatch cycles with nothing new before a heartbeat is sent.
+///
+/// Zero disables heartbeats. See the Kconfig help for why silence is not a
+/// safe default.
+constexpr uint16_t HEARTBEAT_AFTER_CYCLES = CONFIG_APP_HEARTBEAT_AFTER_CYCLES;
+
 /// Identifier of this concentrator, carried in every uplink header.
 constexpr uint32_t CONCENTRATOR_ID = CONFIG_APP_CONCENTRATOR_ID;
 
