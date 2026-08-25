@@ -140,7 +140,7 @@ non-problem in both variants.
 | --- | --- |
 | Zephyr BT scan callback | On each advertising report: check it's a BLE legacy ADV under our `company_id` filter, copy the raw payload + RSSI + advertiser address into a static pool slot, enqueue to `acquisition`'s queue. **Never parses the Eddystone frame here, never touches `device_table` directly.** |
 | `acquisition` thread | Dequeues raw reports, parses the manufacturer AD element, calls `device_table`'s upsert. The only thread that writes into `device_table`. |
-| `comms` thread | Wakes every `DISPATCH_PERIOD_MIN`. Reads a `device_table` snapshot, builds and fragments packets, is the **only** caller of `hal/link`'s send — single writer to the radio. |
+| `comms` thread | Wakes every `DISPATCH_PERIOD_S`. Reads a `device_table` snapshot, builds and fragments packets, is the **only** caller of `hal/link`'s send — single writer to the radio. |
 | `system_diagnostics` thread | Heartbeat / battery / link-health checks. Lowest-priority protocol thread. |
 | Zephyr log backend | Below everything else — logs never compete with scanning or the dispatch path. |
 
@@ -178,20 +178,74 @@ v3 left this at:
   worth including in the uplink so a network operator can tell "this concentrator saw more devices
   than it could track" rather than silently under-reporting a crowded room.
 
+## 4.2 The concentrator decides nothing about the data
+
+**It receives advertisements and dispatches them. That is the whole contract.**
+
+No threshold, no motion detection, no filtering on sensor values, no derived field, no aggregation
+window, no opinion about what an accelerometer reading means. Whatever consumes the uplinks makes
+those decisions, where there is a database, a history and a person who can change their mind
+without a firmware release.
+
+The three decisions the concentrator *does* make are all about the link, not the data:
+
+| Decision | Why it cannot live anywhere else |
+| --- | --- |
+| Last value per device, not every advertisement | 20 endpoints at 1 Hz is 22.5 MB/day. LoRa carries roughly four orders of magnitude less. Something has to sample, and only the device holding the radio knows what fits. |
+| How many packets per cycle | Airtime is a property of the transport (§5). |
+| Which devices are stale | An entry no advertisement has refreshed is absence of input, not an interpretation of it. |
+
+None of those look at a sensor value. They look at the clock and at the radio.
+
+This is why the endpoint firmware is not being modified: the concentrator has no need for the
+endpoint to pre-digest anything, because it does not digest anything itself. It also rules out an
+attractive-looking optimisation — computing motion from `acc_x/y/z` here to send one byte instead
+of six — and that is deliberate. It would be inventing a threshold on the device that is hardest to
+change, from 1 Hz samples of a sensor already running at 100 Hz, and it would put a product
+decision inside a relay.
+
+### Two products, one firmware
+
+| | LoRa build | TCP build |
+| --- | --- | --- |
+| Application | Industrial: motors running or stopped, temperature, humidity | Buildings and city: is this machine in use right now |
+| Dispatch period | 900 s | 30 s |
+| Uplinks per cycle | 3 | unbounded |
+| Deployment | Its own endpoints and its own concentrators | Its own endpoints and its own concentrators |
+
+They are separate installations that never see each other. The only thing they share is this
+repository, and the only file that knows which one is being built is `hal/link`.
+
 ## 5. Uplink packet — US915 airtime math
 
 Per-device record:
 
 ```c
 struct __attribute__((packed)) EndpointRecord {
-    uint8_t  mac[6];
-    int8_t   rssi;
-    int8_t   sns_temperature;
-    uint8_t  sns_humidity;
+    uint8_t  address[6];          // added here: identity
+    int8_t   rssi;                // added here: a property of THIS link
+    uint16_t seconds_since_seen;  // added here: no wall clock on the device
+
+    int8_t   temperature;         // ---- the endpoint's payload, verbatim ----
+    uint8_t  humidity;
+    uint16_t pressure;
+    int16_t  acc_x;
+    int16_t  acc_y;
+    int16_t  acc_z;
     uint16_t battery_mv;
-    uint32_t last_seen_uptime;
-};  // 15 bytes — pressure/accel dropped for airtime, confirm this is still fine (open item)
+    uint32_t endpoint_timestamp;
+};  // 25 bytes: 9 added by the concentrator, 16 relayed unchanged
 ```
+
+**Open item closed.** An earlier version dropped pressure and the three accelerometer axes to save
+airtime. That was a decision about the *content* of the data, and §4.2 says the concentrator does
+not make those. Dropping the axes made the accelerometer unusable on the far end, which is the
+field the industrial application cares about most, so the record now carries the payload through
+whole.
+
+The cost is one number: at DR3 a fragment holds about 9 records instead of 15. Nothing is lost by
+that, since unreported devices stay pending, and it is paid for by `APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH`
+going from 1 to 3 — about 1.2 s of airtime every 900 s, or 0.13%.
 
 Header: `concentrator_id`(4) + `sequence`(2) + `fragment_index`(1) + `fragment_count`(1) +
 `record_count`(1) + `dropped_adv_reports`(1) + `evicted_devices`(1) = 11 bytes (two bytes added
@@ -226,8 +280,8 @@ through `get_max_uplinks_per_dispatch()` — 1 on LoRaWAN, unbounded on TCP — 
 smaller of "fragments needed" and "fragments allowed", resuming next cycle from where it stopped.
 
 The number that matters operationally is not the packet count but the resulting report interval:
-with 30 pending devices at DR3 (15 records/fragment) a pass takes two cycles, so a given device can
-be reported every 30 minutes rather than every 15. Shorten `APP_DISPATCH_PERIOD_MIN` or fix the
+with 30 pending devices at DR3 (9 records/fragment at 25 bytes each) a pass needs 4 fragments and
+the allowance is 3, so the tail of the room waits for the next cycle. Shorten `APP_DISPATCH_PERIOD_S` or fix the
 link budget; raising `APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH` trades a duty-cycle problem for a
 latency one and should not be done without measuring the airtime.
 
@@ -338,7 +392,7 @@ constraint that isn't free to change — replaces the plain description table fr
 
 ### `comms`
 
-- **Owns**: the dispatch scheduler (`DISPATCH_PERIOD_MIN` timer), packet building and
+- **Owns**: the dispatch scheduler (`DISPATCH_PERIOD_S` timer), packet building and
   US915-airtime fragmentation (§5), and is the sole caller of `hal::link::send()`.
 - **Exposes**: nothing — it's the top of the chain, triggered only by its own timer.
 - **Depends on**: `device_table`, `hal/link`.
@@ -396,7 +450,7 @@ decision"):
 - **No wire-protocol group/versioning scheme for an extensible command grammar.** The LoRa uplink
   is one fixed telemetry frame type (§5), not an RPC protocol that needs `mux`-style extension
   points for new command groups. If the concentrator ever needs to *receive* downlink commands
-  (e.g., reconfigure `DISPATCH_PERIOD_MIN` over LoRaWAN), that's a new piece of design, not
+  (e.g., reconfigure `DISPATCH_PERIOD_S` over LoRaWAN), that's a new piece of design, not
   something this section's group-numbering scheme would apply to unmodified.
 
 ## 9. Still open

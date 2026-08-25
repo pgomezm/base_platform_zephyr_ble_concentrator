@@ -54,7 +54,7 @@ CONFIG_LORA_LOG_LEVEL_DBG=y
 CONFIG_LORAWAN_LOG_LEVEL_DBG=y
 
 # So a dispatch does not take fifteen minutes to observe.
-CONFIG_APP_DISPATCH_PERIOD_MIN=1
+CONFIG_APP_DISPATCH_PERIOD_S=60
 ```
 
 `LOG_MODE_IMMEDIATE` prints each line as it happens instead of buffering, so a

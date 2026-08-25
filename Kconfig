@@ -110,21 +110,28 @@ config APP_LINK_LORA_DEV_EUI
 
 config APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH
 	int "Uplinks sent per dispatch cycle"
-	default 1
+	default 3
 	range 1 8
 	help
 	  How many LoRaWAN transmissions one dispatch cycle may make. Every
-	  fragment of an uplink is a separate transmission: at DR0 a single
-	  11 byte packet already holds the channel for roughly a quarter of a
-	  second, so a table fragmented across eight packets is seconds of
-	  continuous airtime from one node. That is what gets a device
-	  throttled by the network server, or refused outright wherever a duty
-	  cycle is enforced.
+	  fragment of an uplink is a separate transmission, and a burst of
+	  them back to back from one node is what gets a device throttled by
+	  the network server.
 
-	  Leave this at 1 unless there is a measured reason not to. Devices
-	  that do not fit in a cycle are not dropped: the table holds the last
-	  value per device, so they go out in the next cycle with a fresher
-	  reading. The cost of a low number here is latency, not data.
+	  Three, with the 900 s period above, is roughly 1.2 s of airtime
+	  every 15 minutes at DR3 - about 0.13%, which no regional rule or
+	  fair-use policy objects to. It reports about 27 devices per cycle at
+	  25 bytes a record, so a room of 20 goes out in one pass.
+
+	  Raising it further is not obviously wrong, but measure the airtime
+	  first: at DR0 a single packet holds the channel for roughly a
+	  quarter of a second, and the arithmetic that makes 3 comfortable at
+	  DR3 is not the same one at DR0.
+
+	  Devices that do not fit in a cycle are not dropped. Nothing is
+	  acknowledged until it is sent, so they are still pending and the
+	  next cycle leads with them. The cost of a low number is latency, not
+	  data.
 
 endif # APP_LINK_LORA
 
@@ -220,17 +227,28 @@ config APP_EXPECTED_COMPANY_ID
 	  after a little-endian read, so configure it as it reads there: 0x05AA,
 	  not 0xAA05.
 
-config APP_DISPATCH_PERIOD_MIN
-	int "Minutes between uplink dispatches"
-	default 15
-	range 1 1440
+config APP_DISPATCH_PERIOD_S
+	int "Seconds between uplink dispatches"
+	default 900 if APP_LINK_LORA
+	default 30 if APP_LINK_TCP
+	default 900
+	range 5 86400
 	help
-	  How often the collected readings are sent. A cycle reports as many
-	  devices as fit in the packets the transport allows it to send, and
-	  the next cycle resumes where it stopped. With a transport that caps
-	  uplinks per cycle, the interval between two reports of the same
-	  device is therefore this period times the number of cycles a full
-	  pass over the table takes.
+	  How often the collected readings are sent. The default differs by
+	  transport because the two products differ, not because the code
+	  does.
+
+	  LoRa, 900 s: industrial monitoring. Nobody needs to know within a
+	  minute that a motor started, and it is the only rate that fits in
+	  the airtime a node is entitled to.
+
+	  TCP, 30 s: building and city sensing, where "is this machine in use
+	  right now" is a question someone is waiting on. There is no airtime
+	  to ration on a wire.
+
+	  Seconds rather than minutes because 30 s does not round to a useful
+	  number of minutes, and a unit that cannot express a valid setting is
+	  the wrong unit.
 
 config APP_HEARTBEAT_AFTER_CYCLES
 	int "Quiet dispatch cycles before a heartbeat is sent"

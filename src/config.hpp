@@ -40,11 +40,14 @@ constexpr uint16_t ADV_REPORT_POOL_SIZE = CONFIG_APP_ADV_REPORT_POOL_SIZE;
 /// acquisition thread. This is the only content filter in the receive path.
 constexpr uint16_t EXPECTED_COMPANY_ID = CONFIG_APP_EXPECTED_COMPANY_ID;
 
-/// Period between uplink dispatches, in minutes.
-constexpr uint32_t DISPATCH_PERIOD_MIN = CONFIG_APP_DISPATCH_PERIOD_MIN;
+/// Period between uplink dispatches, in seconds.
+///
+/// The default comes from the transport: 900 s on LoRa, 30 s on TCP. See the
+/// Kconfig help - the two products differ, the code does not.
+constexpr uint32_t DISPATCH_PERIOD_S = CONFIG_APP_DISPATCH_PERIOD_S;
 
 /// Period between uplink dispatches, in milliseconds.
-constexpr uint32_t DISPATCH_PERIOD_MS = DISPATCH_PERIOD_MIN * 60U * 1000U;
+constexpr uint32_t DISPATCH_PERIOD_MS = DISPATCH_PERIOD_S * 1000U;
 
 /// Age after which a device that stopped advertising is considered stale, in
 /// seconds.

@@ -59,16 +59,19 @@ A record is acknowledged only once the fragment carrying it was accepted by the 
 whatever did not go out is still pending in the table and the next `snapshot()` leads with it. That
 is exact rather than approximate, which is why the rotation cursor an earlier version used is gone.
 
-The practical consequence is worth stating plainly: with a 15 minute period, 30 pending devices and
-DR3 (15 records per fragment), a full pass takes two cycles, so **a given device can be reported
-every 30 minutes rather than every 15**. Shorten the period or fix the link budget; do not raise
-the uplink allowance without measuring the airtime it costs.
+The practical consequence is worth stating plainly. At DR3 a 25 byte record gives about 9 records
+per fragment, and the LoRa allowance is 3 fragments per cycle, so **one cycle reports about 27
+devices**. A room of 20 goes out in a single pass; a room of 50 takes two cycles, and a given
+device is then reported every 30 minutes rather than every 15. Shorten the period or fix the link
+budget before raising the allowance, and if you raise it, measure the airtime at the data rate the
+network actually negotiated — the arithmetic that makes 3 comfortable at DR3 is not the same one
+at DR0.
 
 ## Only what changed
 
 `snapshot()` returns devices whose reading has not reached the network yet, not every fresh device.
 A device that has not advertised since its last successful uplink adds nothing — the table holds a
-last value, so repeating it restates what the far end already has, at 13 bytes of airtime a record.
+last value, so repeating it restates what the far end already has, at 25 bytes of airtime a record.
 
 Delivery is acknowledged, not assumed. `send_fragment()` calls `device_table::mark_reported()` for
 each record **after** the transport accepted the packet, passing back the `update_seq` the uplink

@@ -75,29 +75,34 @@ struct __attribute__((packed)) UplinkHeader
 
 static_assert(sizeof(UplinkHeader) == 12U, "UplinkHeader must stay 12 bytes");
 
-/// One endpoint's data, as reported over LoRa.
+/// One endpoint's data, relayed.
 ///
-/// Deliberately smaller than what the endpoint advertises. Pressure and the
-/// three accelerometer axes are dropped here: at the lower US915 data rates
-/// every byte costs a record, and a presence and condition report does not need
-/// raw accelerometer counts. Open item 5 in docs/ARCHITECTURE.md: confirm this
-/// is right for whatever consumes the data.
+/// **The concentrator does not decide what any of this means.** It carries the
+/// endpoint's sensor payload through byte for byte and adds only the two things
+/// the endpoint cannot know about itself: how strong its signal was here, and
+/// how long ago it was heard.
+///
+/// An earlier version dropped pressure and the three accelerometer axes to save
+/// airtime. That was a decision about the *content* of the data, and content
+/// decisions belong to whatever consumes the uplinks, not to a relay. Dropping
+/// the axes in particular made the accelerometer unusable on the far end, which
+/// is the field the industrial application cares about most.
+///
+/// The record is 25 bytes instead of 13. What that costs is one number: at DR3
+/// a fragment carries about 9 records instead of 15, so a cycle reports fewer
+/// devices. Nothing is lost by that - unreported devices stay pending and go
+/// out next cycle - and it is paid for by raising the uplink allowance to 3,
+/// which is still 0.13% airtime. See APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH.
 struct __attribute__((packed)) EndpointRecord
 {
     /// The endpoint's BLE address. Its only identity.
     uint8_t address[hal::ble::ADDRESS_SIZE];
 
     /// Signal strength, in dBm, measured by this concentrator.
+    ///
+    /// Added here, not relayed: it is a property of the link between this
+    /// concentrator and that endpoint, which the endpoint has no way to report.
     int8_t rssi;
-
-    /// Sensor temperature, in degrees Celsius.
-    int8_t temperature;
-
-    /// Sensor relative humidity, in percent.
-    uint8_t humidity;
-
-    /// Battery voltage, in millivolts.
-    uint16_t battery_mv;
 
     /// How long ago this endpoint was last heard from, in seconds.
     ///
@@ -105,9 +110,40 @@ struct __attribute__((packed)) EndpointRecord
     /// wall clock: an absolute timestamp from a device whose epoch is its own
     /// boot would mean nothing on the far end.
     uint16_t seconds_since_seen;
+
+    // Everything below is the endpoint's payload, unmodified. The layout
+    // mirrors svc::acquisition::EddystoneSensorData field for field. It is
+    // restated here rather than embedded so that the uplink wire format stays
+    // readable in one place, and so that a change to the advertisement is a
+    // deliberate change here too rather than a silent one.
+
+    /// Sensor temperature, in degrees Celsius.
+    int8_t temperature;
+
+    /// Sensor relative humidity, in percent.
+    uint8_t humidity;
+
+    /// Sensor pressure.
+    uint16_t pressure;
+
+    /// Accelerometer X raw data.
+    int16_t acc_x;
+
+    /// Accelerometer Y raw data.
+    int16_t acc_y;
+
+    /// Accelerometer Z raw data.
+    int16_t acc_z;
+
+    /// Battery voltage, in millivolts.
+    uint16_t battery_mv;
+
+    /// The endpoint's own sequence number or uptime. **Not** wall-clock time.
+    uint32_t endpoint_timestamp;
 };
 
-static_assert(sizeof(EndpointRecord) == 13U, "EndpointRecord must stay 13 bytes");
+static_assert(sizeof(EndpointRecord) == 25U,
+              "EndpointRecord must stay 25 bytes: 9 added here plus the endpoint's 16");
 
 } // namespace svc::comms
 
