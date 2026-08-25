@@ -17,6 +17,19 @@
 
 #include <string.h>
 
+// The DevNonce has to survive a reboot: from LoRaWAN 1.0.4 an OTAA join must
+// present one higher than the last the join server saw for this DevEUI, so a
+// device that restarts at zero has its join refused as a replay - a join that
+// used to work and now silently does not.
+//
+// LORAWAN_NVM_SETTINGS is a choice symbol, so the Kconfig above cannot select
+// it; it relies on the LoRaWAN NVM choice defaulting to it when SETTINGS is on.
+// If that default ever stops applying, the failure is silent and appears weeks
+// later in the field. This makes it a build error instead.
+#if !defined(CONFIG_LORAWAN_NVM_SETTINGS)
+#error "CONFIG_LORAWAN_NVM_SETTINGS is off: the DevNonce will not survive a reboot and joins will be refused as replays after the first restart. Check that CONFIG_SETTINGS and CONFIG_NVS are enabled."
+#endif
+
 LOG_MODULE_DEFINE(hal_link_lora);
 
 namespace hal::link
