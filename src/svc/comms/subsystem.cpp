@@ -60,10 +60,24 @@ uint16_t s_sequence = 0U;
 /// Whether the first uplink since boot has been sent.
 bool s_boot_uplink_sent = false;
 
-/// Consecutive dispatch cycles that found nothing new to report.
+/// Uptime, in seconds, when an uplink the far end can see last left the device.
 ///
-/// Reset by any uplink that leaves the device, heartbeat included.
-uint16_t s_quiet_cycles = 0U;
+/// Counted in seconds rather than in dispatch cycles because the contract is
+/// "never go silent for longer than X", and X comes from whatever consumes the
+/// uplinks - a backend that raises an alarm after thirty minutes - not from
+/// this firmware's dispatch period. Counting cycles made the same number mean
+/// an hour on the LoRa build and two minutes on the TCP one, which was an
+/// accident rather than a decision.
+///
+/// Zero means nothing has been sent since boot, so the device is treated as
+/// having been silent for its whole uptime. That is true, and it is what makes
+/// the first heartbeat happen on time rather than one interval late.
+///
+/// The empty ADR probe deliberately does **not** update this: it carries no
+/// application payload, so the far end learns nothing from it. At a data rate
+/// where only the probe fits, the device is silent to the application no matter
+/// what, and pretending otherwise would hide exactly the fault worth seeing.
+uint32_t s_last_uplink_uptime_s = 0U;
 
 /// Working copy of the device table, filled by snapshot() at dispatch time.
 ///
@@ -181,6 +195,10 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
         device_table::mark_reported(p_entries[index].address, p_entries[index].update_seq);
     }
 
+    // Every application-visible uplink goes through here, so this is the one
+    // place the silence clock has to be reset.
+    s_last_uplink_uptime_s = hal::system::get_uptime_seconds();
+
     LOG_INFO("sent fragment %u/%u: %u records, %u bytes", fragment_index + 1U, fragment_count, count,
             static_cast<unsigned>(offset));
 
@@ -195,26 +213,69 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
 /// still carries the dropped-report and eviction counters.
 void send_heartbeat_if_due()
 {
-    if (config::HEARTBEAT_AFTER_CYCLES == 0U)
+    if (config::HEARTBEAT_MAX_SILENCE_S == 0U)
     {
         return;
     }
 
-    if (s_quiet_cycles < config::HEARTBEAT_AFTER_CYCLES)
+    const uint32_t now_s = hal::system::get_uptime_seconds();
+    const uint32_t silent_s = now_s - s_last_uplink_uptime_s;
+
+    if (silent_s < config::HEARTBEAT_MAX_SILENCE_S)
     {
-        LOG_INFO("nothing new to report (%u of %u quiet cycles)",
-                static_cast<unsigned>(s_quiet_cycles),
-                static_cast<unsigned>(config::HEARTBEAT_AFTER_CYCLES));
+        LOG_INFO("nothing new to report, silent for %u s of %u",
+                 static_cast<unsigned>(silent_s),
+                 static_cast<unsigned>(config::HEARTBEAT_MAX_SILENCE_S));
         return;
     }
 
     ++s_sequence;
 
-    if (send_fragment(nullptr, 0U, 0U, 1U, hal::system::get_uptime_seconds(), true))
+    if (send_fragment(nullptr, 0U, 0U, 1U, now_s, true))
     {
-        s_quiet_cycles = 0U;
         s_boot_uplink_sent = true;
     }
+}
+
+/// Send a frame with no application payload, so the network has something to
+/// measure.
+///
+/// The data rate a LoRaWAN network assigns is derived from the uplinks it
+/// receives. When the rate is too low to carry even a header, declining to
+/// transmit is not a wait, it is a **deadlock**: nothing goes out, so the
+/// network measures nothing, so the rate never rises, so nothing goes out. This
+/// function used to be a `return` and a log line, under a comment claiming the
+/// next cycle might negotiate a better rate. It could not. Negotiating requires
+/// transmitting.
+///
+/// An empty frame is what a LoRaWAN device sends for exactly this purpose. It
+/// is the only thing that fits in the 11 bytes US915 DR0 allows, given a 12
+/// byte header, and it costs one small transmission per cycle.
+///
+/// It is also the instrument. The gateway reports RSSI and SNR for this frame,
+/// which is how "the antenna is bad" is told apart from "the configuration is
+/// wrong" - two faults that look identical from the device, where both produce
+/// silence.
+///
+/// @param max_payload what the transport says it can carry right now, for the log
+void send_adr_probe(uint8_t max_payload)
+{
+    // Zero length, but a real buffer: a transport is entitled to dereference
+    // the pointer it is handed without checking the count first.
+    const hal::link::LinkError result =
+        hal::link::LinkFactory::get_instance().send(s_fragment_buffer, 0U);
+
+    if (result != hal::link::LinkError::NO_ERROR)
+    {
+        LOG_ERROR("data rate allows %u bytes, too few for a %u byte header, and the empty probe "
+                  "failed to send",
+                  max_payload, static_cast<unsigned>(sizeof(UplinkHeader)));
+        return;
+    }
+
+    LOG_WARNING("data rate allows %u bytes, too few for a %u byte header: sent an empty uplink so "
+                "the network can raise it",
+                max_payload, static_cast<unsigned>(sizeof(UplinkHeader)));
 }
 
 /// Build and send the uplink for this dispatch cycle.
@@ -228,13 +289,13 @@ void dispatch()
 
     const uint8_t max_payload = hal::link::LinkFactory::get_instance().get_max_payload_size();
 
-    // The data rate can leave less room than one record needs. Fragmenting into
-    // pieces the radio will refuse would loop forever, so this is a wait, not a
-    // retry: the next cycle may negotiate a better rate.
+    // Not even the header fits. US915 DR0 is the case: 11 bytes, against a 12
+    // byte header. Nothing this firmware could say fits there - a BLE address
+    // alone is 6 of those 11 - so the only useful thing to transmit is nothing,
+    // and transmitting nothing is what lets the network raise the rate.
     if (max_payload <= sizeof(UplinkHeader))
     {
-        LOG_WARNING("dispatch skipped: %u byte payload cannot hold a %u byte header plus a record",
-                max_payload, static_cast<unsigned>(sizeof(UplinkHeader)));
+        send_adr_probe(max_payload);
         return;
     }
 
@@ -243,7 +304,22 @@ void dispatch()
 
     if (records_per_fragment == 0U)
     {
-        LOG_WARNING("dispatch skipped: no room for a single record at this data rate");
+        // The header fits, a record does not. Send the header alone rather than
+        // nothing: it carries the dropped-report and eviction counters, it
+        // feeds the same rate negotiation the empty probe above does, and the
+        // HEARTBEAT flag tells the far end this was a cycle with data it could
+        // not fit rather than a quiet one.
+        ++s_sequence;
+
+        LOG_WARNING("data rate allows %u bytes: room for a %u byte header but not a %u byte record",
+                    max_payload, static_cast<unsigned>(sizeof(UplinkHeader)),
+                    static_cast<unsigned>(sizeof(EndpointRecord)));
+
+        if (send_fragment(nullptr, 0U, 0U, 1U, hal::system::get_uptime_seconds(), true))
+        {
+            s_boot_uplink_sent = true;
+        }
+
         return;
     }
 
@@ -255,7 +331,6 @@ void dispatch()
 
     if (total_records == 0U)
     {
-        ++s_quiet_cycles;
         send_heartbeat_if_due();
         return;
     }
@@ -306,7 +381,6 @@ void dispatch()
 
     if (sent_records > 0U)
     {
-        s_quiet_cycles = 0U;
         s_boot_uplink_sent = true;
     }
 

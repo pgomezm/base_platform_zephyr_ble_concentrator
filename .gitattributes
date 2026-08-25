@@ -1,0 +1,23 @@
+# Line endings.
+#
+# This repository is committed with LF and developed on Windows. Without a rule
+# here, git does nothing: an editor that saves CRLF turns every file into a
+# whole-file diff, and a review of ten real lines arrives as four thousand.
+# That happened, which is why this file exists.
+#
+# text=auto eol=lf: git stores LF and checks out LF. Every tool in the
+# toolchain - CMake, ninja, gcc, python, west - reads LF on Windows without
+# complaint.
+* text=auto eol=lf
+
+# Except batch files. cmd.exe is the one thing here that is not indifferent to
+# line endings; a .bat with bare LF can misparse labels and multi-line blocks.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Never touched.
+*.hex binary
+*.bin binary
+*.elf binary
+*.png binary
+*.pdf binary

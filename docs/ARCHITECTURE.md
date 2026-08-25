@@ -281,10 +281,17 @@ If DR0 really can't carry even one record, `comms` needs a floor — either forc
 rate via ADR configuration, or explicitly treat "can't send anything at this DR" as a wait state
 rather than an infinite fragment loop.
 
-**Resolved: it is a wait state.** `comms` skips the cycle and logs it. Confirmed on hardware — a
-join succeeds, ADR settles at DR0 because the link budget is bad, and every dispatch logs
-`dispatch skipped`. The guard is behaving correctly; what is wrong is the antenna, not the
-firmware. See `docs/BRINGUP.md`.
+**Resolved, and the first answer was wrong.** This used to say the guard was correct and the
+antenna was to blame. The guard was a deadlock. A network assigns a data rate from the uplinks it
+receives, so a device that declines to transmit at DR0 is never measured and is never raised — it
+stays at DR0 for ever, and it would do so with a perfect antenna. "The next cycle may negotiate a
+better rate" was wrong because negotiating requires transmitting.
+
+A cycle that cannot fit a header now sends an **empty frame**: no application payload, the one
+thing that fits in 11 bytes, and what LoRaWAN provides it for. A cycle that can fit the header but
+not a record sends the header alone with the `HEARTBEAT` flag. Both feed the negotiation, and both
+give the gateway an RSSI and SNR to report — which is also the only way to tell a bad antenna from
+a bad configuration, two faults that look identical from the device because both produce silence.
 
 **Also resolved: how many packets one cycle may send.** The table above answers how *big* a packet
 may be, which is not the same as how *many* may leave at once. `hal::link` answers that separately

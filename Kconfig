@@ -394,22 +394,33 @@ config APP_DISPATCH_PERIOD_S
 	  number of minutes, and a unit that cannot express a valid setting is
 	  the wrong unit.
 
-config APP_HEARTBEAT_AFTER_CYCLES
-	int "Quiet dispatch cycles before a heartbeat is sent"
-	default 4
-	range 0 255
+config APP_HEARTBEAT_MAX_SILENCE_S
+	int "Longest the device may go without sending anything, in seconds"
+	default 3600 if APP_LINK_LORA
+	default 120
+	range 0 86400
 	help
 	  Only devices whose reading has not reached the network yet are sent,
 	  so a room where nothing changes produces no uplink at all. From the
-	  far end that is indistinguishable from a dead concentrator.
+	  far end that is indistinguishable from a dead concentrator. The rule
+	  is that this device is never silent.
 
-	  After this many consecutive cycles with nothing to report, the device
-	  sends a header with no records and the HEARTBEAT flag set. At the
-	  default period of 15 minutes, 4 cycles means silence is never longer
-	  than an hour.
+	  When this much time has passed with nothing sent, the next dispatch
+	  cycle transmits a header with no records and the HEARTBEAT flag set.
+	  It carries the dropped-report and eviction counters, so a heartbeat
+	  still reports whether the receive path is healthy.
 
-	  Set to 0 to disable heartbeats entirely. Only do that if something
-	  else on the network already proves the device is alive.
+	  Seconds, not dispatch cycles. What matters is how long the far end
+	  may hear nothing, and that number comes from whatever consumes the
+	  uplinks. Counted in cycles, the same setting meant an hour on the
+	  LoRa build and two minutes on the TCP one, and changing the dispatch
+	  period silently changed this with it.
+
+	  Set it below whatever timeout the backend uses to declare a device
+	  offline, or a quiet installation will trip that alarm.
+
+	  0 disables heartbeats. Only safe if something else on the network
+	  already proves the device is alive.
 
 config APP_DEVICE_STALE_AFTER_S
 	int "Seconds after which a silent device is considered stale"

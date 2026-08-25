@@ -34,11 +34,33 @@ records_per_fragment = (max_payload - sizeof(UplinkHeader)) / sizeof(EndpointRec
 Every fragment of one cycle carries the same sequence number and its own index, so the far end can
 tell a multi-fragment cycle from several single-fragment ones.
 
-**The zero case is a wait, not a retry.** At the lowest US915 data rate the payload can be smaller
-than a header plus one record. Fragmenting into pieces the radio will refuse would loop forever, so
-the service logs and skips the cycle; the next one may negotiate a better rate. The payload table in
-`docs/ARCHITECTURE.md` section 5 is still flagged for verification against the regional parameters
-spec, which is exactly why this path is handled rather than assumed away.
+**The zero case is a probe, not a wait.** At US915 DR0 the payload is 11 bytes, against a 12 byte
+header — nothing this firmware could say fits there, since a BLE address alone is 6 of those 11.
+
+The obvious response is to skip the cycle and wait for a better rate. That is what this service did,
+and it is a **deadlock**: the rate a network assigns comes from the uplinks it receives, so a device
+that transmits nothing is measured as nothing and is never raised. It would sit at DR0 for ever, and
+it would do so with a perfect antenna.
+
+So the cycle transmits an empty frame instead — no application payload, which is the one thing that
+fits in 11 bytes and is exactly what LoRaWAN provides it for. Two or three of those and the network
+has enough to raise the rate.
+
+There is a second case between the two: the header fits but a record does not. That cycle sends the
+header alone, flagged `HEARTBEAT`, which carries the counters and feeds the same negotiation.
+
+**One device is not a special case.** With a 12 byte header and 25 byte records, a single endpoint
+needs 37 bytes, which DR1 already provides:
+
+| data rate | payload | records |
+| --- | --- | --- |
+| DR0 | ~11 B | 0 — empty probe only |
+| DR1 | ~53 B | 1 |
+| DR2 | ~125 B | 4 |
+| DR3 | ~242 B | 9 |
+
+DR0 is not "too small for a busy room", it is too small for anyone. Everything from DR1 up works,
+which is why getting off DR0 is the whole problem.
 
 ## How many fragments actually go out
 
@@ -83,12 +105,24 @@ losing one matters most.
 ## The heartbeat
 
 Reporting only what changed means a quiet room produces no uplink at all, and from the far end that
-is indistinguishable from a dead concentrator. After `CONFIG_APP_HEARTBEAT_AFTER_CYCLES` cycles
-with nothing pending (default 4, so at most an hour of silence at the default period), the service
-sends a header with no records and the `HEARTBEAT` flag set. The dropped-report and eviction
-counters ride along, so a heartbeat still reports whether the receive path is healthy.
+is indistinguishable from a dead concentrator. **The rule is that the device is never silent**: once
+`CONFIG_APP_HEARTBEAT_MAX_SILENCE_S` has passed with nothing sent, the next cycle transmits a header
+with no records and the `HEARTBEAT` flag set. The dropped-report and eviction counters ride along,
+so a heartbeat still reports whether the receive path is healthy.
 
-Setting the symbol to 0 disables it. That is only safe if something else on the network already
+**Seconds, not cycles.** An earlier version counted quiet dispatch cycles, which meant one setting
+bounded silence at an hour on the LoRa build and two minutes on the TCP one, and moving the dispatch
+period moved this with it. What matters is how long the far end may hear nothing, and that number
+belongs to the backend: set it below whatever timeout raises an "offline" alarm there, or a quiet
+installation will trip it.
+
+`s_last_uplink_uptime_s` is the clock, reset inside `send_fragment()` on success — the one place
+every application-visible uplink passes through. The empty ADR probe deliberately does not reset it:
+it carries no application payload, so the far end learns nothing from it. At a data rate where only
+the probe fits the device really is silent to the application, and hiding that would hide the fault
+worth seeing.
+
+Setting the symbol to 0 disables heartbeats. Only safe if something else on the network already
 proves the device is alive.
 
 ## What goes on the wire
