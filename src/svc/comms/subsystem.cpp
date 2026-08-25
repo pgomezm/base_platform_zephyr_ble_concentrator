@@ -61,6 +61,21 @@ uint16_t s_sequence = 0U;
 /// Whether the first uplink since boot has been sent.
 bool s_boot_uplink_sent = false;
 
+/// Where the next dispatch cycle resumes in the snapshot.
+///
+/// Only ever non-zero on a transport that caps uplinks per cycle. Without it a
+/// capped cycle would report the same first devices every time and everything
+/// past them would never be sent at all.
+///
+/// This indexes the snapshot, not the table, so it is fair only while the
+/// snapshot keeps its ordering between cycles. It does not when a device goes
+/// stale or a new one appears, and a device can then be skipped or repeated
+/// once. That is acceptable because the table holds the last value per device:
+/// whatever a cycle carries is current when it is sent. It would not be
+/// acceptable if the table kept history, where a skipped entry is a lost
+/// sample rather than a delayed one.
+size_t s_rotation_start = 0U;
+
 /// Working copy of the device table, filled by snapshot() at dispatch time.
 ///
 /// Statically allocated at full table capacity: sizing it smaller would mean a
@@ -200,33 +215,59 @@ void dispatch()
 
     const uint32_t now_s = hal::system::get_uptime_seconds();
 
-    const size_t fragment_count_full =
+    const size_t fragments_needed =
         (total_records + records_per_fragment - 1U) / records_per_fragment;
 
-    const uint8_t fragment_count = (fragment_count_full > UINT8_MAX)
-                                       ? UINT8_MAX
-                                       : static_cast<uint8_t>(fragment_count_full);
+    // How many transmissions this cycle is allowed to make. On LoRaWAN this is
+    // one: every fragment is a separate transmission, and sending a queue of
+    // them back to back is the airtime abuse that gets a node throttled. On a
+    // wired transport it is effectively unlimited and the loop below runs to
+    // completion exactly as it did before.
+    const uint8_t max_uplinks =
+        hal::link::LinkFactory::get_instance().get_max_uplinks_per_dispatch();
 
-    LOG_INF("dispatch %u: %u records in %u fragments", s_sequence,
-            static_cast<unsigned>(total_records), fragment_count);
+    const size_t fragments_allowed =
+        (fragments_needed > max_uplinks) ? max_uplinks : fragments_needed;
 
-    size_t sent_records = 0U;
+    const uint8_t fragment_count = static_cast<uint8_t>(fragments_allowed);
+
+    // Resume where the last cycle stopped. A start index past the end means the
+    // snapshot shrank since then, so begin a new pass.
+    size_t index = (s_rotation_start < total_records) ? s_rotation_start : 0U;
+
+    LOG_INF("dispatch %u: %u records known, sending %u of %u fragments from index %u",
+            s_sequence, static_cast<unsigned>(total_records), fragment_count,
+            static_cast<unsigned>(fragments_needed), static_cast<unsigned>(index));
+
     bool all_sent = true;
 
-    for (uint8_t fragment_index = 0U; fragment_index < fragment_count; ++fragment_index)
+    for (uint8_t fragment_index = 0U;
+         (fragment_index < fragment_count) && (index < total_records); ++fragment_index)
     {
-        const size_t remaining = total_records - sent_records;
+        const size_t remaining = total_records - index;
         const uint8_t count = (remaining > records_per_fragment)
                                   ? records_per_fragment
                                   : static_cast<uint8_t>(remaining);
 
-        if (!send_fragment(&s_snapshot[sent_records], count, fragment_index, fragment_count, now_s))
+        if (!send_fragment(&s_snapshot[index], count, fragment_index, fragment_count, now_s))
         {
             all_sent = false;
             break;
         }
 
-        sent_records += count;
+        index += count;
+    }
+
+    // A completed pass wraps, so the next cycle starts a new one. A cycle that
+    // stopped early - because it ran out of allowance, or because a fragment
+    // failed - leaves the cursor on the first record it did not send, and that
+    // record leads the next cycle.
+    s_rotation_start = (index >= total_records) ? 0U : index;
+
+    if (all_sent && (index < total_records))
+    {
+        LOG_INF("%u records deferred to the next cycle",
+                static_cast<unsigned>(total_records - index));
     }
 
     if (all_sent)

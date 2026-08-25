@@ -147,6 +147,24 @@ public:
     /// @return The maximum payload size in bytes, or 0 if not connected
     virtual uint8_t get_max_payload_size() const = 0;
 
+    /// Maximum number of uplinks this transport accepts in one dispatch cycle
+    ///
+    /// A dispatch that does not fit in one packet is fragmented, and on a
+    /// transport with no per-packet cost svc::comms sends every fragment back
+    /// to back. On LoRaWAN that is wrong: each fragment is a separate
+    /// transmission, and a queue of them in a row is airtime a single node is
+    /// not entitled to. The limit belongs here rather than in svc::comms
+    /// because it is a property of the transport, not of the data.
+    ///
+    /// Deferring the fragments that do not fit is safe: the device table holds
+    /// the last value per device, so an entry not sent this cycle goes out in
+    /// the next one carrying a fresher reading than it would have. The cost of
+    /// a low limit is latency, not data. This would not hold if the table kept
+    /// history.
+    ///
+    /// @return The maximum uplinks per dispatch cycle, never less than 1
+    virtual uint8_t get_max_uplinks_per_dispatch() const = 0;
+
     /// Virtual destructor
     virtual ~ILink() = default;
 };
