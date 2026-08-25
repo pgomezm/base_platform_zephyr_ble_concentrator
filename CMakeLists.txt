@@ -71,10 +71,23 @@ target_sources(app PRIVATE
 # Exactly one link backend is compiled, chosen by the "Uplink transport" menu
 # in Kconfig. This is what makes one repository build both concentrator
 # variants instead of forking: everything above src/hal/link is identical.
+#
+# The two socket backends also share src/hal/link/socket/, which holds the
+# socket itself. They differ only in how the interface comes up, so that part
+# is compiled once and each backend supplies the difference.
 if(CONFIG_APP_LINK_LORA)
     target_sources(app PRIVATE src/hal/link/lora/link_lora.cpp)
 elseif(CONFIG_APP_LINK_TCP)
-    target_sources(app PRIVATE src/hal/link/tcp/link_tcp.cpp)
+    target_sources(app PRIVATE
+        src/hal/link/socket/socket_link.cpp
+        src/hal/link/tcp/link_tcp.cpp
+    )
+elseif(CONFIG_APP_LINK_WIFI)
+    target_sources(app PRIVATE
+        src/hal/link/socket/socket_link.cpp
+        src/hal/link/wifi/link_wifi.cpp
+    )
 else()
-    message(FATAL_ERROR "No link backend selected. Set CONFIG_APP_LINK_LORA or CONFIG_APP_LINK_TCP.")
+    message(FATAL_ERROR
+        "No link backend selected. Set CONFIG_APP_LINK_LORA, CONFIG_APP_LINK_TCP or CONFIG_APP_LINK_WIFI.")
 endif()

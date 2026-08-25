@@ -206,15 +206,27 @@ decision inside a relay.
 
 ### Two products, one firmware
 
-| | LoRa build | TCP build |
-| --- | --- | --- |
-| Application | Industrial: motors running or stopped, temperature, humidity | Buildings and city: is this machine in use right now |
-| Dispatch period | 900 s | 30 s |
-| Uplinks per cycle | 3 | unbounded |
-| Deployment | Its own endpoints and its own concentrators | Its own endpoints and its own concentrators |
+| | LoRa build | TCP build | Wi-Fi build |
+| --- | --- | --- | --- |
+| Application | Industrial: motors running or stopped, temperature, humidity | Buildings and city: is this machine in use right now | as the TCP build, without a cable |
+| Board | nRF52840 DK + inAir9 | nRF52840 DK + W5500 | ESP32-S3-DevKitC-1 |
+| Dispatch period | 900 s | 30 s | 30 s |
+| Uplinks per cycle | 3 | unbounded | unbounded |
 
-They are separate installations that never see each other. The only thing they share is this
-repository, and the only file that knows which one is being built is `hal/link`.
+Three builds, two products: the TCP and Wi-Fi builds are the same product with a different way of
+reaching the network, which is why they share `hal/link/socket/` and differ only in
+`bring_up_network()`.
+
+The installations never see each other. The only thing they share is this repository, and the only
+directory that knows which one is being built is `hal/link`.
+
+**The Wi-Fi build breaks one rule in §4, and it is worth stating rather than discovering.** The
+ESP32-S3 has a single 2.4 GHz radio shared between Wi-Fi and Bluetooth, so the scanner is deaf
+while Wi-Fi transmits. Nothing in this firmware causes that and nothing in it can avoid it. On a
+30 s period carrying a few hundred bytes the window is small, and losing an advertisement costs
+little here because the table holds last values and the endpoints re-advertise every second. It is
+still the one place where the hardware, not the code, decides how long the radio is unavailable,
+and it is the reason the wired variant exists.
 
 ## 5. Uplink packet — US915 airtime math
 
@@ -333,9 +345,13 @@ constraint that isn't free to change — replaces the plain description table fr
 - **Exposes**: `ILink` through `LinkFactory::get_instance()` — `initialize()`, `connect()`,
   `is_connected()`, `send()`, `register_downlink_callback()`, `get_max_payload_size()`.
 - **Depends on**: the platform SDK only.
-- **Backends**: `lora/link_lora.cpp` over Zephyr's `CONFIG_LORAWAN`, and `tcp/link_tcp.cpp` over
-  Zephyr sockets. `CMakeLists.txt` compiles exactly one, and the Kconfig choice also selects the
-  Zephyr subsystem that backend needs — which is why `prj.conf` names neither LoRa nor networking.
+- **Backends**: `lora/link_lora.cpp` over Zephyr's `CONFIG_LORAWAN`, and two socket backends over
+  Zephyr sockets — `tcp/link_tcp.cpp` on a wired interface, `wifi/link_wifi.cpp` on an associated
+  access point. The socket itself is shared: `socket/socket_link.cpp` holds it and each backend
+  implements only `bring_up_network()`. `CMakeLists.txt` compiles exactly one backend, and the
+  Kconfig choice also selects the Zephyr subsystem it needs — which is why `prj.conf` names neither
+  LoRa nor networking nor Wi-Fi, and why the flash and settings stack is selected by the LoRa
+  choice instead of switched on for builds with nothing to store.
 - **Constraint**: `send()` is called from exactly one place — `svc/comms` (§4). No retry or backoff
   policy lives here; that is `comms`'s job, and the state machine's, so a backend stays a thin
   wrapper. A failed TCP `send()` drops the socket and reports; it does not reconnect behind
