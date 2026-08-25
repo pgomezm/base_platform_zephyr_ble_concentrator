@@ -62,6 +62,22 @@ struct Entry
     /// This concentrator's uptime, in seconds, when the reading arrived.
     uint32_t last_seen_uptime_s;
 
+    /// Increments on every reading recorded for this device.
+    ///
+    /// Bookkeeping, never transmitted. snapshot() copies it out and svc::comms
+    /// hands it back to mark_reported() once the uplink carrying the entry has
+    /// actually left the device. That round trip is what makes "delivered"
+    /// race-free: a device that advertised again while the uplink was in flight
+    /// has a higher sequence by the time the acknowledgement comes back, so it
+    /// stays pending instead of having a fresh reading marked as already sent.
+    uint16_t update_seq;
+
+    /// The update_seq of the last reading that reached the network.
+    ///
+    /// Bookkeeping, never transmitted. An entry is pending exactly when this
+    /// differs from update_seq.
+    uint16_t reported_seq;
+
     /// Whether this slot holds a device.
     bool in_use;
 };
@@ -82,11 +98,17 @@ void initialize();
 /// @param reading the parsed reading
 void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading);
 
-/// Copy out every entry that is currently fresh.
+/// Copy out every fresh entry whose reading has not reached the network yet.
 ///
 /// Returns a copy rather than a reference into the table so that the caller can
 /// take as long as it needs to build and fragment an uplink without holding a
 /// lock, and without blocking the acquisition thread.
+///
+/// A device that has not advertised since its last successful uplink is left
+/// out. Repeating it would spend airtime restating something the far end
+/// already knows, and with a table of last values there is nothing else it
+/// could add. The cost is that a quiet room produces no uplink at all, which is
+/// why svc::comms has a heartbeat.
 ///
 /// **Called only from the comms thread.**
 ///
@@ -94,6 +116,22 @@ void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading);
 /// @param max_entries capacity of @p p_out
 /// @return the number of entries written
 size_t snapshot(Entry* p_out, size_t max_entries);
+
+/// Record that an entry's reading reached the network.
+///
+/// Called once per record, and only after the transport accepted the fragment
+/// carrying it. Marking at snapshot time instead would lose a reading every
+/// time the radio refused a packet.
+///
+/// @p update_seq is the value copied out by snapshot(). If the entry has moved
+/// past it, a newer reading arrived while the uplink was in flight and the
+/// entry is left pending on purpose.
+///
+/// **Called only from the comms thread.**
+///
+/// @param p_address the endpoint's BLE address
+/// @param update_seq the update sequence the uplink actually carried
+void mark_reported(const uint8_t* p_address, uint16_t update_seq);
 
 /// Number of devices currently held in the table.
 ///

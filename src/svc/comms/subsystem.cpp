@@ -61,20 +61,10 @@ uint16_t s_sequence = 0U;
 /// Whether the first uplink since boot has been sent.
 bool s_boot_uplink_sent = false;
 
-/// Where the next dispatch cycle resumes in the snapshot.
+/// Consecutive dispatch cycles that found nothing new to report.
 ///
-/// Only ever non-zero on a transport that caps uplinks per cycle. Without it a
-/// capped cycle would report the same first devices every time and everything
-/// past them would never be sent at all.
-///
-/// This indexes the snapshot, not the table, so it is fair only while the
-/// snapshot keeps its ordering between cycles. It does not when a device goes
-/// stale or a new one appears, and a device can then be skipped or repeated
-/// once. That is acceptable because the table holds the last value per device:
-/// whatever a cycle carries is current when it is sent. It would not be
-/// acceptable if the table kept history, where a skipped entry is a lost
-/// sample rather than a delayed one.
-size_t s_rotation_start = 0U;
+/// Reset by any uplink that leaves the device, heartbeat included.
+uint16_t s_quiet_cycles = 0U;
 
 /// Working copy of the device table, filled by snapshot() at dispatch time.
 ///
@@ -120,14 +110,15 @@ EndpointRecord to_record(const device_table::Entry& entry, uint32_t now_s)
 
 /// Build and send one fragment.
 ///
-/// @param p_entries the entries this fragment carries
-/// @param count how many entries
+/// @param p_entries the entries this fragment carries, nullptr for a heartbeat
+/// @param count how many entries, zero for a heartbeat
 /// @param fragment_index zero-based index of this fragment
 /// @param fragment_count total fragments this cycle
 /// @param now_s the current uptime, in seconds
+/// @param is_heartbeat whether this is a record-less liveness uplink
 /// @return true if the radio accepted the fragment
 bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t fragment_index,
-                   uint8_t fragment_count, uint32_t now_s)
+                   uint8_t fragment_count, uint32_t now_s, bool is_heartbeat)
 {
     UplinkHeader header{};
 
@@ -144,6 +135,11 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
     if (config::REPORT_BOOT_IN_FIRST_UPLINK && !s_boot_uplink_sent)
     {
         header.flags |= static_cast<uint8_t>(UplinkFlags::BOOT);
+    }
+
+    if (is_heartbeat)
+    {
+        header.flags |= static_cast<uint8_t>(UplinkFlags::HEARTBEAT);
     }
 
     size_t offset = 0U;
@@ -167,10 +163,48 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
         return false;
     }
 
+    // Acknowledge here, and only for what actually left the device. Clearing at
+    // snapshot time instead would lose a reading every time the radio refused a
+    // packet, which is precisely when losing one matters most.
+    for (uint8_t index = 0U; index < count; ++index)
+    {
+        device_table::mark_reported(p_entries[index].address, p_entries[index].update_seq);
+    }
+
     LOG_INF("sent fragment %u/%u: %u records, %u bytes", fragment_index + 1U, fragment_count, count,
             static_cast<unsigned>(offset));
 
     return true;
+}
+
+/// Send a record-less uplink if the device has been quiet for too long.
+///
+/// Reporting only what changed means a room where nothing moves produces no
+/// uplink at all, and at the far end that is indistinguishable from a
+/// concentrator that died. A header with no records is the difference, and it
+/// still carries the dropped-report and eviction counters.
+void send_heartbeat_if_due()
+{
+    if (config::HEARTBEAT_AFTER_CYCLES == 0U)
+    {
+        return;
+    }
+
+    if (s_quiet_cycles < config::HEARTBEAT_AFTER_CYCLES)
+    {
+        LOG_INF("nothing new to report (%u of %u quiet cycles)",
+                static_cast<unsigned>(s_quiet_cycles),
+                static_cast<unsigned>(config::HEARTBEAT_AFTER_CYCLES));
+        return;
+    }
+
+    ++s_sequence;
+
+    if (send_fragment(nullptr, 0U, 0U, 1U, hal::system::get_uptime_seconds(), true))
+    {
+        s_quiet_cycles = 0U;
+        s_boot_uplink_sent = true;
+    }
 }
 
 /// Build and send the uplink for this dispatch cycle.
@@ -203,11 +237,16 @@ void dispatch()
         return;
     }
 
+    // Only devices whose reading has not reached the network yet. A device that
+    // has not advertised since its last successful uplink carries no new
+    // information, and repeating it would spend a record's worth of airtime
+    // restating what the far end already has.
     const size_t total_records = device_table::snapshot(s_snapshot, config::MAX_DEVICES);
 
     if (total_records == 0U)
     {
-        LOG_INF("dispatch skipped: no devices heard from this cycle");
+        ++s_quiet_cycles;
+        send_heartbeat_if_due();
         return;
     }
 
@@ -231,48 +270,44 @@ void dispatch()
 
     const uint8_t fragment_count = static_cast<uint8_t>(fragments_allowed);
 
-    // Resume where the last cycle stopped. A start index past the end means the
-    // snapshot shrank since then, so begin a new pass.
-    size_t index = (s_rotation_start < total_records) ? s_rotation_start : 0U;
+    LOG_INF("dispatch %u: %u devices pending, sending %u of %u fragments", s_sequence,
+            static_cast<unsigned>(total_records), fragment_count,
+            static_cast<unsigned>(fragments_needed));
 
-    LOG_INF("dispatch %u: %u records known, sending %u of %u fragments from index %u",
-            s_sequence, static_cast<unsigned>(total_records), fragment_count,
-            static_cast<unsigned>(fragments_needed), static_cast<unsigned>(index));
-
+    size_t sent_records = 0U;
     bool all_sent = true;
 
-    for (uint8_t fragment_index = 0U;
-         (fragment_index < fragment_count) && (index < total_records); ++fragment_index)
+    for (uint8_t fragment_index = 0U; fragment_index < fragment_count; ++fragment_index)
     {
-        const size_t remaining = total_records - index;
+        const size_t remaining = total_records - sent_records;
         const uint8_t count = (remaining > records_per_fragment)
                                   ? records_per_fragment
                                   : static_cast<uint8_t>(remaining);
 
-        if (!send_fragment(&s_snapshot[index], count, fragment_index, fragment_count, now_s))
+        if (!send_fragment(&s_snapshot[sent_records], count, fragment_index, fragment_count, now_s,
+                           false))
         {
             all_sent = false;
             break;
         }
 
-        index += count;
+        sent_records += count;
     }
 
-    // A completed pass wraps, so the next cycle starts a new one. A cycle that
-    // stopped early - because it ran out of allowance, or because a fragment
-    // failed - leaves the cursor on the first record it did not send, and that
-    // record leads the next cycle.
-    s_rotation_start = (index >= total_records) ? 0U : index;
-
-    if (all_sent && (index < total_records))
+    if (sent_records > 0U)
     {
-        LOG_INF("%u records deferred to the next cycle",
-                static_cast<unsigned>(total_records - index));
-    }
-
-    if (all_sent)
-    {
+        s_quiet_cycles = 0U;
         s_boot_uplink_sent = true;
+    }
+
+    // Nothing has to remember where this cycle stopped. Whatever did not go out
+    // was never acknowledged, so it is still pending in the table and the next
+    // snapshot leads with it. That is why the rotation cursor this replaced is
+    // gone: it approximated fairness by position, and this is exact.
+    if (all_sent && (sent_records < total_records))
+    {
+        LOG_INF("%u devices deferred to the next cycle",
+                static_cast<unsigned>(total_records - sent_records));
     }
 }
 

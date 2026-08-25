@@ -232,6 +232,23 @@ config APP_DISPATCH_PERIOD_MIN
 	  device is therefore this period times the number of cycles a full
 	  pass over the table takes.
 
+config APP_HEARTBEAT_AFTER_CYCLES
+	int "Quiet dispatch cycles before a heartbeat is sent"
+	default 4
+	range 0 255
+	help
+	  Only devices whose reading has not reached the network yet are sent,
+	  so a room where nothing changes produces no uplink at all. From the
+	  far end that is indistinguishable from a dead concentrator.
+
+	  After this many consecutive cycles with nothing to report, the device
+	  sends a header with no records and the HEARTBEAT flag set. At the
+	  default period of 15 minutes, 4 cycles means silence is never longer
+	  than an hour.
+
+	  Set to 0 to disable heartbeats entirely. Only do that if something
+	  else on the network already proves the device is alive.
+
 config APP_DEVICE_STALE_AFTER_S
 	int "Seconds after which a silent device is considered stale"
 	default 3600
