@@ -88,6 +88,11 @@ uint8_t saturate_to_u8(uint16_t value)
 
 /// Turn a table entry into the record that goes on the wire.
 ///
+/// A copy, not a summary. Every field the endpoint sent is carried through
+/// unchanged, and nothing here interprets, thresholds or derives anything from
+/// them: this firmware relays, and the decisions about what a reading means are
+/// made by whatever consumes the uplinks.
+///
 /// @param entry the table entry
 /// @param now_s the current uptime, in seconds
 /// @return the record to transmit
@@ -97,12 +102,18 @@ EndpointRecord to_record(const device_table::Entry& entry, uint32_t now_s)
 
     memcpy(record.address, entry.address, sizeof(record.address));
     record.rssi = entry.rssi;
-    record.temperature = entry.reading.temperature;
-    record.humidity = entry.reading.humidity;
-    record.battery_mv = entry.reading.battery_mv;
 
     const uint32_t age_s = now_s - entry.last_seen_uptime_s;
     record.seconds_since_seen = (age_s > UINT16_MAX) ? UINT16_MAX : static_cast<uint16_t>(age_s);
+
+    record.temperature = entry.reading.temperature;
+    record.humidity = entry.reading.humidity;
+    record.pressure = entry.reading.pressure;
+    record.acc_x = entry.reading.acc_x;
+    record.acc_y = entry.reading.acc_y;
+    record.acc_z = entry.reading.acc_z;
+    record.battery_mv = entry.reading.battery_mv;
+    record.endpoint_timestamp = entry.reading.endpoint_timestamp;
 
     return record;
 }
@@ -322,7 +333,7 @@ bool initialize()
         return false;
     }
 
-    LOG_INFO("comms service ready, dispatch period %u min", config::DISPATCH_PERIOD_MIN);
+    LOG_INFO("comms service ready, dispatch period %u s", config::DISPATCH_PERIOD_S);
 
     return true;
 }
