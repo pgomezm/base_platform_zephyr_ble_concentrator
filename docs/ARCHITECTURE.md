@@ -364,6 +364,12 @@ constraint that isn't free to change — replaces the plain description table fr
 
 - **`hal/gpio`** owns one `IGpio` per pin the firmware drives, handed out by
   `ManagerFactory::get_instance()`. Pins are configured once, in the manager's constructor.
+  **A pin the board does not have is absent, not fatal**: the three status LEDs come from the
+  `led0`/`led1`/`led2` aliases through `GPIO_DT_SPEC_GET_OR`, and a board with no such alias gets a
+  GPIO whose every operation is a no-op. The ESP32-S3-DevKitC-1 has none — its only LED is an
+  addressable RGB, which is not a GPIO — and requiring three would have made a status light decide
+  which boards this firmware runs on. Which LEDs exist is logged once at bring-up, so an error LED
+  that never lights is a line in the log rather than an afternoon with a multimeter.
 - **`hal/led`** wraps a GPIO as an LED (`turn_on`/`turn_off`/`toggle`), handed out by
   `Manager::get_instance()`. It has **no platform subdirectory**: every platform-specific line is
   behind `IGpio`, which is what splitting GPIO out bought.
