@@ -8,16 +8,16 @@
 #include "hal/link/link.hpp"
 
 #include "config.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
 #include <zephyr/lorawan/lorawan.h>
 
 #include <string.h>
 
-LOG_MODULE_REGISTER(hal_link_lora, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(hal_link_lora);
 
 namespace hal::link
 {
@@ -181,7 +181,7 @@ public:
     {
         if (!device_is_ready(s_p_lora_device))
         {
-            LOG_ERR("LoRa device not ready; check the SPI wiring and the board overlay");
+            LOG_ERROR("LoRa device not ready; check the SPI wiring and the board overlay");
             return LinkError::NOT_READY;
         }
 
@@ -189,11 +189,11 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("lorawan_start failed (%d)", result);
+            LOG_ERROR("lorawan_start failed (%d)", result);
             return LinkError::CONFIG_ERROR;
         }
 
-        LOG_INF("LoRa radio ready");
+        LOG_INFO("LoRa radio ready");
 
         return LinkError::NO_ERROR;
     }
@@ -208,13 +208,13 @@ public:
 
         if (!parse_hex(config::LINK_LORA_JOIN_EUI, join_eui, sizeof(join_eui)))
         {
-            LOG_ERR("JoinEUI is not %u hex characters", static_cast<unsigned>(EUI_SIZE * 2U));
+            LOG_ERROR("JoinEUI is not %u hex characters", static_cast<unsigned>(EUI_SIZE * 2U));
             return LinkError::CONFIG_ERROR;
         }
 
         if (!parse_hex(config::LINK_LORA_APP_KEY, app_key, sizeof(app_key)))
         {
-            LOG_ERR("AppKey is not %u hex characters", static_cast<unsigned>(KEY_SIZE * 2U));
+            LOG_ERROR("AppKey is not %u hex characters", static_cast<unsigned>(KEY_SIZE * 2U));
             return LinkError::CONFIG_ERROR;
         }
 
@@ -230,7 +230,7 @@ public:
 
         if (lorawan_set_channels_mask(channel_mask, LORAWAN_CHANNELS_MASK_SIZE_US915) != 0)
         {
-            LOG_ERR("lorawan_set_channels_mask failed for sub-band %u",
+            LOG_ERROR("lorawan_set_channels_mask failed for sub-band %u",
                     static_cast<unsigned>(config::LINK_LORA_SUBBAND));
             return LinkError::CONFIG_ERROR;
         }
@@ -254,7 +254,7 @@ public:
         // replay. Passing 0 here lets the stack use the stored value.
         config.otaa.dev_nonce = 0U;
 
-        LOG_INF("joining: sub-band %u, DevEUI %02x%02x%02x%02x%02x%02x%02x%02x",
+        LOG_INFO("joining: sub-band %u, DevEUI %02x%02x%02x%02x%02x%02x%02x%02x",
                 static_cast<unsigned>(config::LINK_LORA_SUBBAND), dev_eui[0], dev_eui[1],
                 dev_eui[2], dev_eui[3], dev_eui[4], dev_eui[5], dev_eui[6], dev_eui[7]);
 
@@ -265,12 +265,12 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("lorawan_join failed (%d)", result);
+            LOG_ERROR("lorawan_join failed (%d)", result);
             return LinkError::CONNECT_ERROR;
         }
 
         m_is_joined = true;
-        LOG_INF("joined");
+        LOG_INFO("joined");
 
         return LinkError::NO_ERROR;
     }
@@ -294,7 +294,7 @@ public:
 
         if (length > get_max_payload_size())
         {
-            LOG_ERR("payload of %u bytes exceeds the %u byte limit at this data rate",
+            LOG_ERROR("payload of %u bytes exceeds the %u byte limit at this data rate",
                     static_cast<unsigned>(length), get_max_payload_size());
             return LinkError::PAYLOAD_TOO_LARGE;
         }
@@ -304,7 +304,7 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("lorawan_send failed (%d)", result);
+            LOG_ERROR("lorawan_send failed (%d)", result);
             return LinkError::SEND_ERROR;
         }
 
@@ -359,7 +359,7 @@ private:
 
         if (length != static_cast<ssize_t>(EUI_SIZE))
         {
-            LOG_ERR("hwinfo returned %d bytes, expected %u", static_cast<int>(length),
+            LOG_ERROR("hwinfo returned %d bytes, expected %u", static_cast<int>(length),
                     static_cast<unsigned>(EUI_SIZE));
             return false;
         }
@@ -368,7 +368,7 @@ private:
 #else
         if (!parse_hex(config::LINK_LORA_DEV_EUI, p_dev_eui, EUI_SIZE))
         {
-            LOG_ERR("DevEUI is not %u hex characters", static_cast<unsigned>(EUI_SIZE * 2U));
+            LOG_ERROR("DevEUI is not %u hex characters", static_cast<unsigned>(EUI_SIZE * 2U));
             return false;
         }
 

@@ -9,10 +9,9 @@
 #include "app/state_machine/dispatching/dispatching.hpp"
 #include "app/state_machine/state_machine.hpp"
 #include "app/port.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_DECLARE(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(app);
 
 namespace app
 {
@@ -27,7 +26,7 @@ void DispatchingState::entry()
     // Scanning is deliberately left running. The dispatch reads a snapshot
     // taken at the start of the cycle, so readings that arrive while the uplink
     // is in flight are simply picked up by the next cycle rather than lost.
-    LOG_INF("dispatching uplink");
+    LOG_INFO("dispatching uplink");
 }
 
 void DispatchingState::exit()

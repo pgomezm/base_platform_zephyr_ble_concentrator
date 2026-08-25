@@ -14,10 +14,9 @@
 #include "app/state_machine/listening/listening.hpp"
 #include "app/state_machine/soft_error/soft_error.hpp"
 #include "app/state_machine/startup/startup.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_DECLARE(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(app);
 
 namespace app
 {
@@ -84,11 +83,11 @@ void StateMachine::transition_to(StateId state_id)
         break;
 
     default:
-        LOG_ERR("transition to unknown state %u", static_cast<unsigned>(state_id));
+        LOG_ERROR("transition to unknown state %u", static_cast<unsigned>(state_id));
         return;
     }
 
-    LOG_INF("state -> %s", get_current_state_name());
+    LOG_INFO("state -> %s", get_current_state_name());
 
     m_current_state_id = state_id;
 }

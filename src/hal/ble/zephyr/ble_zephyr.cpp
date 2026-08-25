@@ -6,15 +6,14 @@
 /// Source file that implements the BLE HAL on Zephyr's Bluetooth stack.
 
 #include "hal/ble/ble.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-
 #include <string.h>
 
-LOG_MODULE_REGISTER(hal_ble, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(hal_ble);
 
 namespace hal::ble
 {
@@ -85,12 +84,12 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("bt_enable failed (%d)", result);
+            LOG_ERROR("bt_enable failed (%d)", result);
             return BleError::HARDWARE_ERROR;
         }
 
         m_is_initialized = true;
-        LOG_INF("BLE subsystem ready");
+        LOG_INFO("BLE subsystem ready");
 
         return BleError::NO_ERROR;
     }
@@ -122,12 +121,12 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("bt_le_scan_start failed (%d)", result);
+            LOG_ERROR("bt_le_scan_start failed (%d)", result);
             return BleError::HARDWARE_ERROR;
         }
 
         s_is_scanning = true;
-        LOG_INF("passive scan started");
+        LOG_INFO("passive scan started");
 
         return BleError::NO_ERROR;
     }
@@ -143,12 +142,12 @@ public:
 
         if (result != 0)
         {
-            LOG_ERR("bt_le_scan_stop failed (%d)", result);
+            LOG_ERROR("bt_le_scan_stop failed (%d)", result);
             return BleError::HARDWARE_ERROR;
         }
 
         s_is_scanning = false;
-        LOG_INF("passive scan stopped");
+        LOG_INFO("passive scan stopped");
 
         return BleError::NO_ERROR;
     }

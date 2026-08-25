@@ -15,9 +15,9 @@
 #include "hal/link/link.hpp"
 
 #include "config.hpp"
+#include "utils/log/log.hpp"
 
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
@@ -28,7 +28,7 @@
 
 #include <string.h>
 
-LOG_MODULE_REGISTER(hal_link_tcp, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_DEFINE(hal_link_tcp);
 
 namespace hal::link
 {
@@ -58,20 +58,20 @@ bool apply_static_address(struct net_if* p_iface)
         (net_addr_pton(AF_INET, config::LINK_TCP_NETMASK, &netmask) != 0) ||
         (net_addr_pton(AF_INET, config::LINK_TCP_GATEWAY, &gateway) != 0))
     {
-        LOG_ERR("static address, netmask or gateway is not a valid dotted quad");
+        LOG_ERROR("static address, netmask or gateway is not a valid dotted quad");
         return false;
     }
 
     if (net_if_ipv4_addr_add(p_iface, &address, NET_ADDR_MANUAL, 0U) == nullptr)
     {
-        LOG_ERR("net_if_ipv4_addr_add failed");
+        LOG_ERROR("net_if_ipv4_addr_add failed");
         return false;
     }
 
     (void)net_if_ipv4_set_netmask_by_addr(p_iface, &address, &netmask);
     net_if_ipv4_set_gw(p_iface, &gateway);
 
-    LOG_INF("static address %s", config::LINK_TCP_LOCAL_IP);
+    LOG_INFO("static address %s", config::LINK_TCP_LOCAL_IP);
 
     return true;
 }
@@ -119,7 +119,7 @@ public:
 
         if (p_iface == nullptr)
         {
-            LOG_ERR("no network interface; check the board overlay");
+            LOG_ERROR("no network interface; check the board overlay");
             return LinkError::NOT_READY;
         }
 
@@ -128,11 +128,11 @@ public:
 
         if (!wait_for_address(p_iface))
         {
-            LOG_ERR("DHCP did not assign an address within %u ms", ADDRESS_WAIT_MS);
+            LOG_ERROR("DHCP did not assign an address within %u ms", ADDRESS_WAIT_MS);
             return LinkError::CONFIG_ERROR;
         }
 
-        LOG_INF("address obtained over DHCP");
+        LOG_INFO("address obtained over DHCP");
 #else
         if (!apply_static_address(p_iface))
         {
@@ -140,7 +140,7 @@ public:
         }
 #endif
 
-        LOG_INF("network ready, uplink server %s:%u", config::LINK_TCP_SERVER_ADDR,
+        LOG_INFO("network ready, uplink server %s:%u", config::LINK_TCP_SERVER_ADDR,
                 static_cast<unsigned>(config::LINK_TCP_SERVER_PORT));
 
         return LinkError::NO_ERROR;
@@ -161,7 +161,7 @@ public:
 
         if (net_addr_pton(AF_INET, config::LINK_TCP_SERVER_ADDR, &server.sin_addr) != 0)
         {
-            LOG_ERR("server address %s is not a valid dotted quad",
+            LOG_ERROR("server address %s is not a valid dotted quad",
                     config::LINK_TCP_SERVER_ADDR);
             return LinkError::CONFIG_ERROR;
         }
@@ -170,7 +170,7 @@ public:
 
         if (m_socket < 0)
         {
-            LOG_ERR("zsock_socket failed (%d)", errno);
+            LOG_ERROR("zsock_socket failed (%d)", errno);
             return LinkError::NOT_READY;
         }
 
@@ -186,14 +186,14 @@ public:
         if (zsock_connect(m_socket, reinterpret_cast<struct sockaddr*>(&server), sizeof(server)) <
             0)
         {
-            LOG_ERR("connect to %s:%u failed (%d)", config::LINK_TCP_SERVER_ADDR,
+            LOG_ERROR("connect to %s:%u failed (%d)", config::LINK_TCP_SERVER_ADDR,
                     static_cast<unsigned>(config::LINK_TCP_SERVER_PORT), errno);
             close_socket();
             return LinkError::CONNECT_ERROR;
         }
 
         m_is_connected = true;
-        LOG_INF("connected to %s:%u", config::LINK_TCP_SERVER_ADDR,
+        LOG_INFO("connected to %s:%u", config::LINK_TCP_SERVER_ADDR,
                 static_cast<unsigned>(config::LINK_TCP_SERVER_PORT));
 
         return LinkError::NO_ERROR;
@@ -213,7 +213,7 @@ public:
 
         if (length > get_max_payload_size())
         {
-            LOG_ERR("fragment of %u bytes exceeds the %u byte limit",
+            LOG_ERROR("fragment of %u bytes exceeds the %u byte limit",
                     static_cast<unsigned>(length), get_max_payload_size());
             return LinkError::PAYLOAD_TOO_LARGE;
         }
@@ -226,7 +226,7 @@ public:
 
             if (result <= 0)
             {
-                LOG_ERR("zsock_send failed (%d)", errno);
+                LOG_ERROR("zsock_send failed (%d)", errno);
 
                 // A broken connection is not recoverable in place. Drop it so
                 // the next connect() builds a new one instead of writing into a

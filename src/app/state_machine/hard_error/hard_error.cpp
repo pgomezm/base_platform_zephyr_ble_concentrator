@@ -13,10 +13,9 @@
 #include "hal/led/led.hpp"
 #include "svc/acquisition/port.hpp"
 #include "svc/comms/subsystem.hpp"
+#include "utils/log/log.hpp"
 
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_DECLARE(app, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(app);
 
 namespace app
 {
@@ -28,7 +27,7 @@ HardErrorState::HardErrorState(eda::StateMachine& state_machine)
 
 void HardErrorState::entry()
 {
-    LOG_ERR("hard error: the device has stopped operating");
+    LOG_ERROR("hard error: the device has stopped operating");
 
     (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::ERROR_LED).turn_on();
 

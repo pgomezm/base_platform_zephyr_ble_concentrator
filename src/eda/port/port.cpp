@@ -8,7 +8,7 @@
 #include "eda/port/port.hpp"
 #include "utils/log/log.hpp"
 
-LOG_MODULE_DECLARE(eda, CONFIG_APP_LOG_LEVEL);
+LOG_MODULE_USE(eda);
 
 namespace eda
 {
@@ -82,7 +82,7 @@ void Port::send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_dat
     else
     {
         // TODO: handle uninitialized port
-        LOG_MODULE_WARN("send_event to unregistered port %u", static_cast<unsigned>(port_id));
+        LOG_WARNING("send_event to unregistered port %u", static_cast<unsigned>(port_id));
     }
 }
 
