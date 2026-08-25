@@ -250,10 +250,6 @@ public:
 
         (void)lorawan_set_class(LORAWAN_CLASS_A);
 
-        // The concentrator is mounted and does not move, which is the condition
-        // Zephyr names for ADR being appropriate rather than harmful.
-        lorawan_enable_adr(true);
-
         // Where ADR starts from, not where it stays: the network overrides this
         // with LinkADRReq as soon as it has uplinks to judge by.
         //
@@ -262,14 +258,27 @@ public:
         // restarted node sends nothing but empty frames until the network has
         // raised it - about 45 minutes at a 900 s dispatch period. Starting
         // higher on a link that has been measured skips all of that.
+        //
+        // The order below is not stylistic. Zephyr's lorawan_set_datarate()
+        // opens with "bail out if using ADR" and returns -EINVAL, so the rate
+        // has to be set while ADR is off. Disabling first rather than assuming
+        // it is off matters on a retry: the flag survives a failed connect(),
+        // and the second attempt would silently keep the region default.
+        lorawan_enable_adr(false);
+
         if (lorawan_set_datarate(
                 static_cast<enum lorawan_datarate>(config::LINK_LORA_INITIAL_DATARATE)) != 0)
         {
-            // Not fatal. The session simply starts wherever the region default
-            // puts it, which is what happened before this existed.
+            // Not fatal. The session starts wherever the region default puts
+            // it, which is what happened before this existed.
             LOG_WARNING("could not set the initial data rate to DR%u; starting at the region default",
                         static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE));
         }
+
+        // The concentrator is mounted and does not move, which is the condition
+        // Zephyr names for ADR being appropriate rather than harmful. Enabled
+        // after the rate above, never before it.
+        lorawan_enable_adr(true);
 
         struct lorawan_join_config config = {};
         config.mode = LORAWAN_ACT_OTAA;
