@@ -26,6 +26,23 @@ config APP_LINK_LORA
 	select LORA
 	select LORA_SX127X
 	select LORAWAN
+	# The stack stores its MAC context in settings, which is what carries the
+	# DevNonce over a reboot. From LoRaWAN 1.0.4 an OTAA join must present a
+	# DevNonce higher than the last one the join server saw for that DevEUI, so
+	# a device that restarts at zero has its join refused as a replay - a join
+	# that used to work and now silently does not. These were in prj.conf,
+	# where they were also switched on for builds that have no LoRa stack to
+	# store anything.
+	select FLASH
+	select FLASH_MAP
+	select NVS
+	select SETTINGS
+	# Not SETTINGS_NVS or LORAWAN_NVM_SETTINGS: both are choice symbols,
+	# and select has no effect on those. Neither is needed anyway. The
+	# settings backend choice already carries `default SETTINGS_NVS if
+	# NVS`, and the LoRaWAN NVM choice carries `default
+	# LORAWAN_NVM_SETTINGS if SETTINGS`, so selecting NVS and SETTINGS
+	# above is what picks both.
 	help
 	  Uplinks go out over LoRaWAN through an SX127x radio described in the
 	  board overlay under the lora0 alias.
@@ -42,6 +59,36 @@ config APP_LINK_TCP
 	  Uplinks go out over a TCP connection to a fixed server. The network
 	  interface comes from the board: an integrated MAC on a Nucleo, or an
 	  SPI Ethernet controller such as a W5500 on a board without one.
+
+config APP_LINK_WIFI
+	bool "Wi-Fi"
+	select NETWORKING
+	select NET_IPV4
+	select NET_TCP
+	select NET_SOCKETS
+	select NET_MGMT
+	select NET_MGMT_EVENT
+	select WIFI
+	select NET_L2_WIFI_MGMT
+	help
+	  Uplinks go out over a TCP connection carried by Wi-Fi. The socket is
+	  the same one the TCP backend uses - the two share
+	  hal/link/socket/ - and the only difference is associating with an
+	  access point first.
+
+	  Built for the ESP32-S3-DevKitC-1. Two things about that part are
+	  worth knowing before choosing this over the wired variant:
+
+	  Wi-Fi and Bluetooth share one 2.4 GHz radio. The scanner goes deaf
+	  while Wi-Fi transmits, which is a silicon-level compromise against
+	  the rule in docs/ARCHITECTURE.md section 4 that nothing may delay
+	  the radio. The nRF52840 plus a wired interface does not have it.
+
+	  Espressif's radio drivers need a system heap and declare how much
+	  through HEAP_MEM_POOL_ADD_SIZE_*: 51200 bytes for Wi-Fi and another
+	  25600 for the Bluetooth controller, which on this SoC is a vendor
+	  blob rather than Zephyr's own. Zephyr provisions exactly the sum.
+	  Nothing in this firmware allocates either way; see prj.conf.
 
 endchoice
 
@@ -72,23 +119,6 @@ config APP_LINK_LORA_SUBBAND
 	  Setup -> LoRa -> Frequency Sub-Band. The unit this firmware is tested
 	  against uses 2, which is also the common default.
 
-config APP_LINK_LORA_JOIN_EUI
-	string "JoinEUI / AppEUI, 16 hex characters"
-	default "0102030405060708"
-	help
-	  Identifies the application on the join server. Not a secret.
-
-config APP_LINK_LORA_APP_KEY
-	string "AppKey, 32 hex characters"
-	default "000102030405060708090a0b0c0d0e0f"
-	help
-	  The root key, from which the session keys are derived. It never leaves
-	  the device and never travels over the air.
-
-	  The default here is deliberately not a real key. Override it in a
-	  prj_local.conf that .gitignore excludes, so a clone of this repository
-	  builds without carrying anyone's credentials.
-
 config APP_LINK_LORA_DEV_EUI_FROM_HWINFO
 	bool "Derive the DevEUI from the SoC's factory identifier"
 	default y
@@ -102,11 +132,6 @@ config APP_LINK_LORA_DEV_EUI_FROM_HWINFO
 	  This works because the gateway accepts any DevEUI presenting the right
 	  AppEUI/AppKey pair. Against a join server with per-device credentials,
 	  turn this off and set the DevEUI it was registered with.
-
-config APP_LINK_LORA_DEV_EUI
-	string "DevEUI, 16 hex characters"
-	default "0000000000000000"
-	depends on !APP_LINK_LORA_DEV_EUI_FROM_HWINFO
 
 config APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH
 	int "Uplinks sent per dispatch cycle"
@@ -148,6 +173,91 @@ config APP_LINK_TCP_USE_DHCP
 	  no address at all, and "the network is not up yet" becomes
 	  indistinguishable from "the network is gone".
 
+config APP_LINK_TCP_CONNECT_TIMEOUT_MS
+	int "Milliseconds to wait for the TCP connection to establish"
+	default 5000
+	range 100 60000
+
+config APP_LINK_TCP_MAX_FRAGMENT
+	int "Largest uplink fragment handed to the transport, in bytes"
+	default 242
+	range 32 242
+	help
+	  TCP imposes no such limit, but reporting one keeps svc::comms
+	  fragmenting exactly as it does on LoRaWAN, so the uplink wire format
+	  and the fragmentation path are identical on both variants and only one
+	  of them has to be tested. 242 is the LoRaWAN ceiling, so a fragment
+	  built here is always one a LoRa build could also have sent.
+
+endif # APP_LINK_TCP
+
+if APP_LINK_WIFI
+
+config APP_LINK_WIFI_USE_DHCP
+	bool "Obtain the IP address over DHCP"
+	default y
+	select NET_DHCPV4
+	help
+	  On by default here, unlike the wired backend. An access point is
+	  almost always handing out addresses already, and a Wi-Fi deployment
+	  is the one where nobody wants to reserve a static address per
+	  concentrator by hand.
+
+config APP_LINK_WIFI_CONNECT_TIMEOUT_MS
+	int "Milliseconds to wait for the TCP connection to establish"
+	default 5000
+	range 100 60000
+
+config APP_LINK_WIFI_MAX_FRAGMENT
+	int "Largest uplink fragment handed to the transport, in bytes"
+	default 242
+	range 32 242
+	help
+	  Wi-Fi imposes no such limit, but reporting one keeps svc::comms
+	  fragmenting exactly as it does on LoRaWAN, so the uplink wire format
+	  and the fragmentation path are identical on all three variants and
+	  only one of them has to be tested.
+
+endif # APP_LINK_WIFI
+
+menu "Per-installation values"
+
+# Addresses, credentials and endpoints, for every transport, defined
+# unconditionally and on purpose.
+#
+# These used to live inside the `if APP_LINK_<transport>` blocks, which meant
+# a symbol only existed in the build that used it - and a single gitignored
+# prj_local.conf holding one installation's LoRa keys and its Wi-Fi password
+# then failed every build but one, because Zephyr treats "assigned a value to
+# a symbol whose dependencies are unmet" as an error.
+#
+# The rule is now: the transport choice gates *behaviour*, never *values*. One
+# prj_local.conf describes one installation and builds every variant of it.
+# Nothing is compiled in that the build does not use: src/config.hpp still
+# reads each group under its own #if, and the linker never sees the rest.
+
+config APP_LINK_LORA_JOIN_EUI
+	string "JoinEUI / AppEUI, 16 hex characters"
+	default "0102030405060708"
+	help
+	  Identifies the application on the join server. Not a secret.
+
+config APP_LINK_LORA_APP_KEY
+	string "AppKey, 32 hex characters"
+	default "000102030405060708090a0b0c0d0e0f"
+	help
+	  The root key, from which the session keys are derived. It never leaves
+	  the device and never travels over the air.
+
+	  The default here is deliberately not a real key. Override it in a
+	  prj_local.conf that .gitignore excludes, so a clone of this repository
+	  builds without carrying anyone's credentials.
+
+config APP_LINK_LORA_DEV_EUI
+	string "DevEUI, 16 hex characters"
+	default "0000000000000000"
+	depends on !APP_LINK_LORA_DEV_EUI_FROM_HWINFO
+
 config APP_LINK_TCP_LOCAL_IP
 	string "Static IP address of this concentrator"
 	default "192.168.1.50"
@@ -176,23 +286,53 @@ config APP_LINK_TCP_SERVER_PORT
 	default 5000
 	range 1 65535
 
-config APP_LINK_TCP_CONNECT_TIMEOUT_MS
-	int "Milliseconds to wait for the TCP connection to establish"
-	default 5000
-	range 100 60000
-
-config APP_LINK_TCP_MAX_FRAGMENT
-	int "Largest uplink fragment handed to the transport, in bytes"
-	default 242
-	range 32 242
+config APP_LINK_WIFI_SSID
+	string "SSID of the access point"
+	default "changeme"
 	help
-	  TCP imposes no such limit, but reporting one keeps svc::comms
-	  fragmenting exactly as it does on LoRaWAN, so the uplink wire format
-	  and the fragmentation path are identical on both variants and only one
-	  of them has to be tested. 242 is the LoRaWAN ceiling, so a fragment
-	  built here is always one a LoRa build could also have sent.
+	  Up to 32 characters. Override it from a gitignored prj_local.conf,
+	  the same place the LoRa keys live, so a clone of this repository does
+	  not carry anyone's network.
 
-endif # APP_LINK_TCP
+config APP_LINK_WIFI_PSK
+	string "Pre-shared key of the access point"
+	default ""
+	help
+	  8 to 64 characters for WPA2-PSK. An empty string means an open
+	  network, which is the only case where empty is a valid setting
+	  rather than a forgotten one.
+
+	  This is a credential. Put the real one in prj_local.conf.
+
+config APP_LINK_WIFI_LOCAL_IP
+	string "Static IP address of this concentrator"
+	default "192.168.1.50"
+	depends on !APP_LINK_WIFI_USE_DHCP
+
+config APP_LINK_WIFI_NETMASK
+	string "Static netmask"
+	default "255.255.255.0"
+	depends on !APP_LINK_WIFI_USE_DHCP
+
+config APP_LINK_WIFI_GATEWAY
+	string "Static default gateway"
+	default "192.168.1.1"
+	depends on !APP_LINK_WIFI_USE_DHCP
+
+config APP_LINK_WIFI_SERVER_ADDR
+	string "IPv4 address of the uplink server"
+	default "192.168.1.10"
+	help
+	  Dotted-quad only. Resolving a name would make every uplink depend on
+	  a DNS server being reachable, which is one more thing to fail between
+	  this device and its data.
+
+config APP_LINK_WIFI_SERVER_PORT
+	int "TCP port of the uplink server"
+	default 5000
+	range 1 65535
+
+endmenu # Per-installation values
 
 config APP_MAX_DEVICES
 	int "Maximum endpoint devices tracked at once"
@@ -229,9 +369,13 @@ config APP_EXPECTED_COMPANY_ID
 
 config APP_DISPATCH_PERIOD_S
 	int "Seconds between uplink dispatches"
+	# 900 is the exception, not the fallback. It exists because of LoRa
+	# airtime and nothing else, so it is conditional on LoRa and every
+	# other transport - including one added later - gets 30. Written the
+	# other way round, with 900 as the last default, the Wi-Fi build
+	# silently inherited a 15 minute period.
 	default 900 if APP_LINK_LORA
-	default 30 if APP_LINK_TCP
-	default 900
+	default 30
 	range 5 86400
 	help
 	  How often the collected readings are sent. The default differs by

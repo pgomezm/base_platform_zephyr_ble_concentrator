@@ -58,6 +58,18 @@ manifest:
           - hal_nordic
           - hal_stm32
 
+          # Espressif, for the ESP32-S3 Wi-Fi variant. Unlike the HALs above,
+          # this one is not enough on its own: the Wi-Fi driver depends on
+          # ZEPHYR_HAL_ESPRESSIF_MODULE_BLOBS, which are binary blobs west does
+          # not fetch with `west update`. After updating, run
+          #
+          #     west blobs fetch hal_espressif
+          #
+          # A build without them fails at Kconfig with WIFI_ESP32 unavailable
+          # and no obvious reason why, which is worth knowing before spending
+          # an evening on it.
+          - hal_espressif
+
           # ST's MEMS sensor drivers. Small, and pulled in by several ST board
           # definitions whether or not a sensor is wired up.
           - hal_st

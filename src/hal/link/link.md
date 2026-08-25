@@ -76,25 +76,56 @@ limit is latency, not data. None of this would hold if the table kept history.
 | backend | source | selected by | status |
 | --- | --- | --- | --- |
 | LoRaWAN | `lora/link_lora.cpp` | `CONFIG_APP_LINK_LORA` (default) | OTAA join verified against a MultiTech Conduit; uplink still blocked by the antenna, see `docs/BRINGUP.md` |
-| TCP | `tcp/link_tcp.cpp` | `CONFIG_APP_LINK_TCP` | compiles; never run against real hardware |
+| TCP over a wired interface | `socket/` + `tcp/link_tcp.cpp` | `CONFIG_APP_LINK_TCP` | compiles; never run against real hardware |
+| TCP over Wi-Fi | `socket/` + `wifi/link_wifi.cpp` | `CONFIG_APP_LINK_WIFI` | written; never built, and needs `west blobs fetch hal_espressif` first |
+
+### The two socket backends share the socket
+
+`tcp/` and `wifi/` are not two TCP implementations. Once an interface has an
+IPv4 address, everything after that is byte for byte identical — the same
+connect, the same partial-write loop, the same close-on-failure policy — so it
+lives once in `socket/socket_link.cpp` as an abstract `SocketLink`, and each
+backend implements only `bring_up_network()`.
+
+That is the argument this whole module is built on, applied one level down.
+`hal::link` exists so the two products are not two repositories; `SocketLink`
+exists so the two socket transports are not two copies of 150 lines that
+quietly stop matching.
+
+`SocketLink` takes its server address, port, timeout and fragment limit as
+constructor arguments rather than reading Kconfig, so it has no opinion about
+which build it is in. The backend owns its own symbols and hands the values
+over.
 
 `CMakeLists.txt` compiles exactly one, and the Kconfig choice also selects the
 Zephyr subsystem that backend needs — `LORA`/`LORAWAN` for one, `NETWORKING`/
 `NET_TCP`/`NET_SOCKETS` for the other. That is why `prj.conf` mentions neither:
 the transport is one symbol, not a block of them.
 
-Build the TCP variant with:
+Build the wired TCP variant with:
 
 ```sh
 west build -b nrf52840dk/nrf52840 <app> -- -DCONFIG_APP_LINK_TCP=y
 ```
+
+Build the Wi-Fi variant with:
+
+```sh
+west build -b esp32s3_devkitc/esp32s3/procpu <app>
+```
+
+No flag: `boards/esp32s3_devkitc_esp32s3_procpu.conf` sets the backend, because
+that board has no SX127x and no wired interface, so building it any other way is
+a mistake rather than a choice.
 
 It builds without any Ethernet hardware present. It will not *run* without a
 network interface — `initialize()` reports `NOT_READY` when
 `net_if_get_default()` returns nothing — but keeping it compiling from the start
 is what stops the TCP path from rotting while the hardware is being decided.
 
-## Two things the TCP backend does not do yet
+## Two things the socket backends do not do yet
+
+Both of them, since both are `SocketLink`.
 
 **No downlink.** `register_downlink_callback()` stores the callback and nothing
 delivers to it. Receiving would need a reader thread parked in `zsock_recv()`,
@@ -107,11 +138,11 @@ reports `SEND_ERROR`; rebuilding the connection is the next `connect()`, which
 the state machine's error path already drives. The transport does not retry
 behind anyone's back.
 
-## Why the TCP link reports a payload limit it does not have
+## Why the socket links report a payload limit they do not have
 
-`get_max_payload_size()` returns `CONFIG_APP_LINK_TCP_MAX_FRAGMENT`, default 242
+`get_max_payload_size()` returns the backend's `..._MAX_FRAGMENT`, default 242
 — the LoRaWAN ceiling. TCP has no such limit, but declaring one keeps
 `svc::comms` fragmenting exactly as it does on LoRaWAN, so both variants emit the
 same wire format and there is one fragmentation path to test instead of two. A
-fragment built by the TCP variant is always one a LoRa build could also have
+fragment built by a socket variant is always one a LoRa build could also have
 sent.

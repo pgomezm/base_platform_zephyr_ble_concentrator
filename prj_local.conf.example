@@ -19,3 +19,11 @@ CONFIG_APP_LINK_LORA_APP_KEY="000102030405060708090a0b0c0d0e0f"
 # TCP variant: where uplinks go, if not the Kconfig default.
 # CONFIG_APP_LINK_TCP_SERVER_ADDR="192.168.1.45"
 # CONFIG_APP_LINK_TCP_SERVER_PORT=5000
+
+# Wi-Fi variant --------------------------------------------------------------
+# Only read when CONFIG_APP_LINK_WIFI=y. The SSID is not a secret; the PSK is,
+# and it is why this file is gitignored.
+# CONFIG_APP_LINK_WIFI_SSID="my-network"
+# CONFIG_APP_LINK_WIFI_PSK="my-password"
+# CONFIG_APP_LINK_WIFI_SERVER_ADDR="192.168.1.10"
+# CONFIG_APP_LINK_WIFI_SERVER_PORT=5000
