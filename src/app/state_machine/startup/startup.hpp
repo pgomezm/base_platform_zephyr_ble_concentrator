@@ -3,7 +3,7 @@
 ///
 /// @file startup.hpp
 ///
-/// Header file that declares the Brings the services up and joins the network. state.
+/// Header file that declares the STARTUP state: brings the services up and joins the network.
 
 #pragma once
 

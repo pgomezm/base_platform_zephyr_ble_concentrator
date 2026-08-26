@@ -12,7 +12,7 @@
 #include "eda/port/port.hpp"
 #include "hal/led/led.hpp"
 #include "svc/acquisition/port.hpp"
-#include "svc/comms/subsystem.hpp"
+#include "svc/comms/port.hpp"
 #include "utils/log/log.hpp"
 
 LOG_MODULE_USE(app);
@@ -33,10 +33,11 @@ void HardErrorState::entry()
 
     // Stop radiating. A device that cannot deliver what it collects should not
     // keep a receiver running and should not keep transmitting.
-    eda::Port::send_event(app::PortList::ACQUISITION_PORT,
+    eda::Port::send_event_critical(app::PortList::ACQUISITION_PORT,
                           static_cast<uint32_t>(svc::acquisition::Event::STOP_SCAN), 0);
 
-    svc::comms::stop_dispatch_timer();
+    eda::Port::send_event_critical(app::PortList::COMMS_PORT,
+                          static_cast<uint32_t>(svc::comms::Event::STOP_DISPATCH), 0);
 
     // Deliberately no automatic reset. A device that reboots itself out of an
     // unrecoverable fault erases the evidence of what went wrong; the watchdog
@@ -51,8 +52,8 @@ void HardErrorState::exit()
 
 void HardErrorState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
 {
-    ARG_UNUSED(event_id);
-    ARG_UNUSED(opt_data_address);
+    (void)event_id;
+    (void)opt_data_address;
 
     // Terminal by design: nothing leaves this state except a reset.
 }

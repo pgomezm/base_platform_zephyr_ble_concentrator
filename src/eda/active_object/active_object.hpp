@@ -79,14 +79,16 @@ private:
     /// @param port Target Port
     /// @param event_id Event
     /// @param opt_data_address Optional data
-    void post_event(Port& port, uint32_t event_id, uint32_t opt_data_address);
+    /// @return true if the event reached the queue, false if the queue was full
+    bool post_event(Port& port, uint32_t event_id, uint32_t opt_data_address);
 
     /// Post an event to the task's event queue from an ISR.
     ///
     /// @param port Target Port
     /// @param event_id Event
     /// @param opt_data_address Optional data
-    void post_event_from_isr(Port& port, uint32_t event_id, uint32_t opt_data_address);
+    /// @return true if the event reached the queue, false if the queue was full
+    bool post_event_from_isr(Port& port, uint32_t event_id, uint32_t opt_data_address);
 
     /// The method executed by each task in its loop
     ///
@@ -98,11 +100,12 @@ private:
 /// full when post_event()/post_event_from_isr() was called.
 ///
 /// Not part of `deepsight-polaris-software`'s ActiveObject, which leaves a
-/// dropped event as a `// TODO: handle full queue`. This concentrator's
-/// architecture (docs/ARCHITECTURE.md section 4) requires overflow to be
-/// observable rather than silent, so it is counted here instead of only
-/// logged, while the post_event()/post_event_from_isr() signatures stay
-/// `void`, matching the reference exactly.
+/// dropped event as an empty `// TODO: handle full queue` in both post
+/// functions. This concentrator's architecture (docs/ARCHITECTURE.md section 4)
+/// requires overflow to be observable rather than silent, so a drop is counted
+/// as well as logged, and the post functions return whether the event was
+/// queued so eda::Port::send_event_critical() can act on it. The reference
+/// returns `void` from both and discards the answer.
 ///
 /// @return the number of events dropped since boot
 uint32_t get_dropped_event_count();

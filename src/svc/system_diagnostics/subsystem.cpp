@@ -22,6 +22,12 @@ LOG_MODULE_DEFINE(svc_system_diagnostics);
 
 namespace svc::system_diagnostics
 {
+
+// Every event id addressed to this port has to be a valid index into the port's
+// callback table, or execute_callback() drops it without a word.
+static_assert(static_cast<uint32_t>(Event::HEARTBEAT_DUE) < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
+              "svc::system_diagnostics has more events than MAX_PORT_CALLBACKS allows");
+
 namespace
 {
 
@@ -52,7 +58,7 @@ Port s_port;
 /// @param p_timer unused, there is only ever one heartbeat timer
 void on_heartbeat_timer_expired(eda::Timer* p_timer)
 {
-    ARG_UNUSED(p_timer);
+    (void)p_timer;
 
     eda::Port::send_event_from_isr(app::PortList::SYSTEM_DIAGNOSTICS_PORT,
                                    static_cast<uint32_t>(Event::HEARTBEAT_DUE), 0);
@@ -99,8 +105,6 @@ Port& get_port()
 
 void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
 {
-    ARG_UNUSED(opt_data_address);
-
     switch (static_cast<Event>(event_id))
     {
     case Event::HEARTBEAT_DUE:
@@ -122,6 +126,14 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
         LOG_WARNING("unhandled event id %u", event_id);
         break;
     }
+
+    // Deliver the event to anything that registered a callback for it on this
+    // port. The switch above is what this service does with the event; this is
+    // how another module learns the event happened without this service having
+    // to know it exists. `deepsight-polaris-software` calls it from every svc
+    // port for exactly that reason, and leaving it out is what made
+    // eda::Port::set_event_callback() unreachable here.
+    execute_callback(event_id, opt_data_address);
 }
 
 } // namespace svc::system_diagnostics

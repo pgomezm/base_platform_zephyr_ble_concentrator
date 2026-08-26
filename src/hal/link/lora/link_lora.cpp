@@ -154,7 +154,7 @@ extern "C" void downlink_callback(uint8_t port, uint8_t flags, int16_t rssi, int
                                   uint8_t length,
                        const uint8_t* p_data)
 {
-    ARG_UNUSED(flags);
+    (void)flags;
 
     if (s_downlink_callback == nullptr)
     {

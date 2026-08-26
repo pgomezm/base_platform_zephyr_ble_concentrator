@@ -6,6 +6,8 @@
 /// Source file that implements the EDA port.
 
 #include "eda/port/port.hpp"
+
+#include "assert/assert.hpp"
 #include "utils/log/log.hpp"
 
 LOG_MODULE_USE(eda);
@@ -76,7 +78,10 @@ void Port::send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_dat
 {
     if (is_registered(port_id))
     {
-        m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event(
+        // Discarded on purpose: a dropped event is already counted and logged
+        // inside post_event(). A caller that cannot tolerate the drop uses
+        // send_event_critical() instead.
+        (void)m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event(
             *m_active_ports_list[static_cast<size_t>(port_id)], event_id, opt_data_address);
     }
     else
@@ -86,12 +91,34 @@ void Port::send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_dat
     }
 }
 
+void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+{
+    if (!is_registered(port_id))
+    {
+        LOG_ERROR("critical event %u sent to unregistered port %u", event_id,
+                  static_cast<unsigned>(port_id));
+        ASSERT_CRITICAL(false);
+        return;
+    }
+
+    const bool queued =
+        m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event(
+            *m_active_ports_list[static_cast<size_t>(port_id)], event_id, opt_data_address);
+
+    if (!queued)
+    {
+        LOG_ERROR("critical event %u lost: port %u queue was full", event_id,
+                  static_cast<unsigned>(port_id));
+        ASSERT_CRITICAL(false);
+    }
+}
+
 void Port::send_event_from_isr(app::PortList port_id, uint32_t event_id,
                                uint32_t opt_data_address)
 {
     if (is_registered(port_id))
     {
-        m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event_from_isr(
+        (void)m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event_from_isr(
             *m_active_ports_list[static_cast<size_t>(port_id)], event_id, opt_data_address);
     }
     else

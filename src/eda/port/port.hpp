@@ -14,8 +14,16 @@
 
 /// Maximum number of distinct event ids a single Port can register a callback
 /// for. Ported from `deepsight-polaris-software`'s `eda::Port`, where this is a
-/// preprocessor `#define` of the same name and value.
-#define MAX_PORT_CALLBACKS 128
+/// preprocessor `#define` of the same name.
+///
+/// The value is 32 here rather than the reference's 128. Every Port carries an
+/// array of this many function pointers, so the number costs four bytes of RAM
+/// per port per slot: 128 is 512 B in every port and 2 KB across the four this
+/// firmware has, to index event enums whose longest is ten entries. Each port
+/// that uses the table static_asserts its own event count against this, so
+/// outgrowing it is a build failure rather than a silent drop inside
+/// execute_callback().
+#define MAX_PORT_CALLBACKS 32
 
 namespace eda
 {
@@ -97,6 +105,29 @@ public:
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
     static void send_event_from_isr(app::PortList port_id, uint32_t event_id,
+                                    uint32_t opt_data_address);
+
+    /// Send an event the firmware cannot correctly continue without.
+    ///
+    /// Identical to send_event() except for what happens when the target queue
+    /// is full: the drop is logged as an error rather than a warning, and on a
+    /// debug build it trips ASSERT_CRITICAL and the device stops there.
+    ///
+    /// The line between the two is whether the event repeats. A periodic or
+    /// interrupt-driven event — a dispatch tick, an advertising report, a
+    /// heartbeat — describes a moment, and losing one costs that moment and
+    /// nothing else; another is already on its way. A one-shot command or
+    /// outcome — start scanning, stop dispatching, the network join succeeded —
+    /// describes a change, and losing it leaves two modules permanently
+    /// disagreeing about what the device is doing, with nothing to correct it.
+    ///
+    /// Not in `deepsight-polaris-software`, which discards the queue result in
+    /// both post functions.
+    ///
+    /// @param port_id Target port identifier from the PortList enum
+    /// @param event_id Event identifier
+    /// @param opt_data_address Optional data associated with the event
+    static void send_event_critical(app::PortList port_id, uint32_t event_id,
                                     uint32_t opt_data_address);
 
     /// Port ID

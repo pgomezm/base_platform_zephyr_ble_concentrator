@@ -137,7 +137,7 @@ bool s_events_registered = false;
 void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
                    struct net_if* p_iface)
 {
-    ARG_UNUSED(p_iface);
+    (void)p_iface;
 
     // Scan events carry a different payload type, so they are handled before
     // anything casts p_callback->info to a wifi_status.

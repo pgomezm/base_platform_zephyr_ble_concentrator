@@ -103,7 +103,7 @@ void App::initialize()
     // state machine does.
     const Event outcome = services_ready ? Event::SERVICES_READY : Event::SERVICES_FAILED;
 
-    eda::Port::send_event(PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
+    eda::Port::send_event_critical(PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
 }
 
 void App::run()

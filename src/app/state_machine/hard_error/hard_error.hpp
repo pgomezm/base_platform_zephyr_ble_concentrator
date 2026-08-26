@@ -3,7 +3,7 @@
 ///
 /// @file hard_error.hpp
 ///
-/// Header file that declares the An unrecoverable failure. The device stops operating. state.
+/// Header file that declares the HARD_ERROR state: an unrecoverable failure, the device stops.
 
 #pragma once
 

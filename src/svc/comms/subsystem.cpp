@@ -27,6 +27,12 @@ LOG_MODULE_DEFINE(svc_comms);
 
 namespace svc::comms
 {
+
+// Every event id addressed to this port has to be a valid index into the port's
+// callback table, or execute_callback() drops it without a word.
+static_assert(static_cast<uint32_t>(Event::STOP_DISPATCH) < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
+              "svc::comms has more events than MAX_PORT_CALLBACKS allows");
+
 namespace
 {
 
@@ -44,15 +50,27 @@ Port s_port;
 /// @param p_timer unused, there is only ever one dispatch timer
 void on_dispatch_timer_expired(eda::Timer* p_timer)
 {
-    ARG_UNUSED(p_timer);
+    (void)p_timer;
 
     eda::Port::send_event_from_isr(app::PortList::COMMS_PORT,
                                    static_cast<uint32_t>(Event::DISPATCH_DUE), 0);
 }
 
-/// Fires every dispatch period, once started by start_dispatch_timer().
+/// Fires every dispatch period, once started by Event::START_DISPATCH.
 eda::Timer s_dispatch_timer{"dispatch", config::DISPATCH_PERIOD_MS, true,
                             &on_dispatch_timer_expired};
+
+/// Whether this service is currently allowed to transmit.
+///
+/// Set by Event::START_DISPATCH and cleared by Event::STOP_DISPATCH, both of
+/// which come from the application state machine: this service does not decide
+/// when the device should be on the air, it is told.
+///
+/// The flag exists rather than relying on the timer alone because stopping a
+/// timer does not unqueue the event it already posted. Without this, entering
+/// HARD_ERROR could still be followed by one more uplink, from the DISPATCH_DUE
+/// that was already sitting in the queue when the stop arrived.
+bool s_dispatch_enabled = false;
 
 /// Increments once per dispatch cycle.
 uint16_t s_sequence = 0U;
@@ -428,6 +446,8 @@ bool initialize()
         return false;
     }
 
+    s_dispatch_enabled = false;
+
     LOG_INFO("comms service ready, dispatch period %u s", config::DISPATCH_PERIOD_S);
 
     return true;
@@ -438,20 +458,8 @@ Port& get_port()
     return s_port;
 }
 
-void start_dispatch_timer()
-{
-    s_dispatch_timer.start();
-}
-
-void stop_dispatch_timer()
-{
-    s_dispatch_timer.stop();
-}
-
 void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
 {
-    ARG_UNUSED(opt_data_address);
-
     switch (static_cast<Event>(event_id))
     {
     case Event::JOIN_NETWORK:
@@ -468,12 +476,36 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
                                        ? app::Event::NETWORK_JOINED
                                        : app::Event::NETWORK_JOIN_FAILED;
 
-        eda::Port::send_event(app::PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
+        eda::Port::send_event_critical(app::PortList::APP_PORT, static_cast<uint32_t>(outcome),
+                                       0U);
         break;
     }
 
+    case Event::START_DISPATCH:
+        s_dispatch_enabled = true;
+        (void)s_dispatch_timer.start();
+        LOG_INFO("dispatching enabled");
+        break;
+
+    case Event::STOP_DISPATCH:
+        s_dispatch_enabled = false;
+        s_dispatch_timer.stop();
+        LOG_INFO("dispatching disabled");
+        break;
+
     case Event::DISPATCH_DUE:
     case Event::DISPATCH_NOW:
+        // Checked here rather than inside dispatch() so the reason a cycle did
+        // not happen is visible at the point the decision is made. A disabled
+        // service is not a fault: it is a device that has been told to stay off
+        // the air, and saying so once per period is how that stays visible in a
+        // log rather than looking like a transport that stopped working.
+        if (!s_dispatch_enabled)
+        {
+            LOG_INFO("dispatch skipped: dispatching is disabled");
+            break;
+        }
+
         dispatch();
         break;
 
@@ -482,6 +514,14 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
         LOG_WARNING("unhandled event id %u", event_id);
         break;
     }
+
+    // Deliver the event to anything that registered a callback for it on this
+    // port. The switch above is what this service does with the event; this is
+    // how another module learns the event happened without this service having
+    // to know it exists. `deepsight-polaris-software` calls it from every svc
+    // port for exactly that reason, and leaving it out is what made
+    // eda::Port::set_event_callback() unreachable here.
+    execute_callback(event_id, opt_data_address);
 }
 
 } // namespace svc::comms

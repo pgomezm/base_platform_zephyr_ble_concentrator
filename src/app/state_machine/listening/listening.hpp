@@ -3,7 +3,7 @@
 ///
 /// @file listening.hpp
 ///
-/// Header file that declares the Scanning and collecting readings. The concentrator's idle state. state.
+/// Header file that declares the LISTENING state: scanning and collecting readings.
 
 #pragma once
 

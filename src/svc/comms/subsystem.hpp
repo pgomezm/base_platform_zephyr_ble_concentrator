@@ -31,11 +31,11 @@ bool initialize();
 /// @return reference to the port
 Port& get_port();
 
-/// Start the periodic dispatch timer.
-void start_dispatch_timer();
-
-/// Stop the periodic dispatch timer.
-void stop_dispatch_timer();
+// Starting and stopping the dispatch timer used to be two functions here. They
+// are Event::START_DISPATCH and Event::STOP_DISPATCH now: the timer belongs to
+// this service, and a caller reaching in to start it ran that code in the
+// caller's thread, which is the one thing the active object model exists to
+// prevent. See src/svc/comms/comms.md.
 
 } // namespace svc::comms
 

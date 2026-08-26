@@ -3,7 +3,7 @@
 ///
 /// @file soft_error.hpp
 ///
-/// Header file that declares the A recoverable failure. Retries after a delay. state.
+/// Header file that declares the SOFT_ERROR state: a recoverable failure, retried after a delay.
 
 #pragma once
 

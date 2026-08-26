@@ -13,7 +13,7 @@
 
 #include "eda/port/port.hpp"
 #include "svc/acquisition/port.hpp"
-#include "svc/comms/subsystem.hpp"
+#include "svc/comms/port.hpp"
 #include "utils/log/log.hpp"
 
 LOG_MODULE_USE(app);
@@ -32,11 +32,19 @@ void ListeningState::entry()
     // dispatch period. In the original diagram this is IDLE, and the operation
     // running inside it is the one labelled HIRING, which reads as a
     // transcription of HEARING. Named for what it does.
-    // The scan is already running: it starts in STARTUP and stops only in
+    //
+    // The scan is not re-armed here. It starts in STARTUP and stops only in
     // HARD_ERROR, which is terminal. Nothing on the path into this state
-    // interrupts it, so re-arming here would be a second answer to a question
-    // that already has one.
-    svc::comms::start_dispatch_timer();
+    // interrupts it, so starting it again would be a second answer to a
+    // question that already has one.
+    //
+    // Dispatching is enabled by an event rather than by calling into
+    // svc::comms, so the timer is started in the comms thread that owns it.
+    // Re-entering this state from DISPATCHING re-posts it, which restarts the
+    // period: the interval this firmware guarantees is between dispatches, not
+    // between timer arms.
+    eda::Port::send_event_critical(app::PortList::COMMS_PORT,
+                          static_cast<uint32_t>(svc::comms::Event::START_DISPATCH), 0);
 
     LOG_INFO("listening for endpoint advertisements");
 }
@@ -47,7 +55,7 @@ void ListeningState::exit()
 
 void ListeningState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
 {
-    ARG_UNUSED(opt_data_address);
+    (void)opt_data_address;
 
     switch (static_cast<Event>(event_id))
     {

@@ -5,8 +5,8 @@
 
 This module provides the event-driven framework every service in this firmware is built on. It is
 ported millimeter-for-millimeter from `deepsight-polaris-software`'s `src/eda`, including the parts
-that only make sense once other modules exist to use them (`Port::set_event_callback()`,
-`StateMachine::return_to_last_state()`). The only thing that changed going from that FreeRTOS reference to this
+that only make sense once other modules exist to use them
+(`StateMachine::return_to_last_state()`). The only thing that changed going from that FreeRTOS reference to this
 project is the kernel underneath: `eda/` no longer includes a kernel header directly (FreeRTOS's
 or Zephyr's). It includes `hal/os/os.hpp` instead, and every FreeRTOS call in the reference
 (`xTaskCreateStatic`, `xQueueCreateStatic`, `xTimerCreateStatic`, ...) became a call into that
@@ -18,10 +18,53 @@ approximated on Zephyr.
 | Component | Responsibility |
 | --- | --- |
 | `ActiveObject` | One thread plus one statically allocated event queue. Runs the event loop. |
-| `Port` | The address of a module, looked up by `app::PortList` id. `send_event()`/`send_event_from_isr()` deliver to whichever port is registered at that id. |
+| `Port` | The address of a module, looked up by `app::PortList` id. `send_event()`/`send_event_from_isr()` deliver to whichever port is registered at that id; `send_event_critical()` refuses to lose the event quietly. |
 | `StateMachine` / `State` | A state machine with transition history: `change_state()`, `return_to_last_state()`, and a two-phase `set_next_state()`/`change_to_next_state()` for conditional transitions. |
 | `Timer` | Invokes a callback, on the timer's own storage, on expiry. |
 | `IdleHook` | One callback invoked while the backend has nothing else to run. |
+
+## Events that may be lost, and events that may not
+
+`post_event()` puts the event on the target's queue and returns. The queue holds 20 events per
+active object, and a full queue means the event is dropped: counted in `get_dropped_event_count()`,
+logged, and gone. `deepsight-polaris-software` has the same queue and an empty `// TODO: handle
+full queue` where the drop happens, so nothing there records it at all.
+
+Counting is enough for most events and not enough for some, and the line between them is whether
+the event **repeats**:
+
+| | example | if it is lost |
+| --- | --- | --- |
+| Periodic or interrupt-driven | `DISPATCH_DUE`, `ADV_REPORT_AVAILABLE`, `HEARTBEAT_DUE` | one moment is missed; another is already on its way |
+| One-shot command or outcome | `START_DISPATCH`, `STOP_SCAN`, `NETWORK_JOINED` | two modules disagree about what the device is doing, permanently, with nothing to correct it |
+
+`STOP_DISPATCH` is the one worth naming: lose it and a concentrator that has entered `HARD_ERROR`
+keeps transmitting, and the counter in the uplink header says so only to whoever reads it.
+
+So one-shot events go out through `Port::send_event_critical()`. It posts exactly as `send_event()`
+does; the difference is what happens when the queue is full. The drop is logged as an error rather
+than a warning, and `ASSERT_CRITICAL` halts the device on a debug build — where, with the watchdog
+running, halting means a reset a few seconds later with a watchdog reset reason. See `assert/`.
+
+**This is a detector, not a fix.** `ASSERT_CRITICAL` compiles out of a release build, so in the
+field a lost critical event is still a lost critical event, now with an error in the log. The real
+answer is either a `bool` return that every caller handles, or making the state something the other
+module can read rather than something it has to be told once. Both are open; this is what stops the
+condition from being invisible in the meantime.
+
+## The callback table
+
+Every `svc` port ends its `execute_event()` with `execute_callback()`, exactly as the reference
+does. The switch above it is what the service *does* with the event; the callback is how a module
+that is not the service learns the event happened, without the service having to know that module
+exists. `app::Port` does not call it, also matching the reference: callbacks are registered on
+service ports, by the state machine, not on the application's own port.
+
+`MAX_PORT_CALLBACKS` is 32 here rather than the reference's 128. Each port carries an array of that
+many function pointers, so at 128 it was 512 B per port and 2 KB across four ports, indexing event
+enums whose longest is ten entries. Each service port `static_assert`s its own event count against
+the limit, so outgrowing it fails the build instead of silently dropping the callback inside
+`execute_callback()`'s bounds check.
 
 ## Why events and not direct calls
 

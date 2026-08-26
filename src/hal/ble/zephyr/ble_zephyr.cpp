@@ -43,7 +43,7 @@ bool s_is_scanning = false;
 extern "C" void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
                    struct net_buf_simple* p_buffer)
 {
-    ARG_UNUSED(adv_type);
+    (void)adv_type;
 
     if (s_adv_report_callback == nullptr)
     {

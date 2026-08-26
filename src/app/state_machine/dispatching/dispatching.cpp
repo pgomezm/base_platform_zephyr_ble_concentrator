@@ -35,7 +35,7 @@ void DispatchingState::exit()
 
 void DispatchingState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
 {
-    ARG_UNUSED(opt_data_address);
+    (void)opt_data_address;
 
     switch (static_cast<Event>(event_id))
     {

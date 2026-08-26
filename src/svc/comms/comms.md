@@ -13,8 +13,30 @@ fragmentation and the radio call all live here rather than in four separate serv
 | | |
 | --- | --- |
 | **Owns** | The dispatch timer, the uplink wire format, the fragmentation logic, the sequence counter, and the heartbeat. |
-| **Exposes** | `initialize()`, `get_port()`, `start_dispatch_timer()`, `stop_dispatch_timer()`. |
+| **Exposes** | `initialize()`, `get_port()`. Everything else is an event on the port. |
 | **Depends on** | `svc/device_table` (read-only), `hal/link`, `svc/acquisition` (for the dropped-report counter). |
+
+## Starting and stopping is an event, not a function call
+
+The dispatch timer belongs to this service, so the application does not start it
+by calling in. It posts `Event::START_DISPATCH` on entry to LISTENING and
+`Event::STOP_DISPATCH` on entry to HARD_ERROR, and the timer is started and
+stopped in this service's own thread.
+
+Two functions, `start_dispatch_timer()` and `stop_dispatch_timer()`, used to do
+this directly. Nothing broke — the underlying timer calls are safe from another
+thread — but it meant the application's thread ran this service's code, which is
+the arrangement the active object model exists to remove, and it would have
+become a real fault the first time starting the timer also touched a variable
+this service owns. The tell was in `hard_error.cpp`, which stopped acquisition
+with an event and stopped this service with a function call, three lines apart.
+
+**Stopping the timer is not enough on its own.** A timer that fired just before
+the stop arrived has already queued a `DISPATCH_DUE` ahead of it, and stopping
+the timer does not take that back out. So `STOP_DISPATCH` also clears
+`s_dispatch_enabled`, and a `DISPATCH_DUE` arriving with the flag clear is
+logged and dropped. That race existed before this change too, in a narrower
+form; the flag is what closes it rather than just moving it.
 
 ## The single writer
 

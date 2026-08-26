@@ -52,7 +52,7 @@ void SoftErrorState::entry()
 
     // Retrying immediately would burn power without changing anything: whatever
     // failed needs time to become available again.
-    eda::Port::send_event(app::PortList::COMMS_PORT,
+    eda::Port::send_event_critical(app::PortList::COMMS_PORT,
                           static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK), 0);
 }
 
@@ -63,7 +63,7 @@ void SoftErrorState::exit()
 
 void SoftErrorState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
 {
-    ARG_UNUSED(opt_data_address);
+    (void)opt_data_address;
 
     switch (static_cast<Event>(event_id))
     {

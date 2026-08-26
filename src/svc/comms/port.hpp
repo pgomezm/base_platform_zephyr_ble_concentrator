@@ -28,6 +28,19 @@ enum class Event : uint32_t
 
     /// Send an uplink now, without waiting for the period.
     DISPATCH_NOW,
+
+    /// Begin dispatching: start the periodic timer and allow transmitting.
+    START_DISPATCH,
+
+    /// Stop dispatching: stop the periodic timer and forbid transmitting.
+    ///
+    /// Stopping the timer is not on its own enough. A timer that fired just
+    /// before this event was posted has already put a DISPATCH_DUE in this
+    /// port's queue, ahead of this one, and stopping the timer does not take it
+    /// back out. The flag this event clears is what makes that queued event a
+    /// no-op instead of one more uplink from a device that was told to go
+    /// quiet.
+    STOP_DISPATCH,
 };
 
 /// The port of the comms service.

@@ -142,7 +142,7 @@ void Queue::init(uint8_t* p_buffer, size_t item_size, size_t max_items)
 
 bool Queue::put(const void* p_item, bool from_isr)
 {
-    ARG_UNUSED(from_isr);
+    (void)from_isr;
 
     // K_NO_WAIT: an active object never blocks a producer, from thread or ISR
     // context alike. On Zephyr, k_msgq_put(..., K_NO_WAIT) is already
@@ -191,7 +191,7 @@ void Semaphore::give(bool from_isr)
     // where the call is xSemaphoreGiveFromISR() with a different signature and
     // a yield request. A caller that has to know which one to use is a caller
     // that has to know which RTOS it is on.
-    ARG_UNUSED(from_isr);
+    (void)from_isr;
 
     auto* const p_sem = reinterpret_cast<struct k_sem*>(m_storage.bytes);
 

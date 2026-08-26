@@ -3,7 +3,7 @@
 ///
 /// @file dispatching.hpp
 ///
-/// Header file that declares the An uplink is being built and sent. The concentrator's busy state. state.
+/// Header file that declares the DISPATCHING state: an uplink is being built and sent.
 
 #pragma once
 
