@@ -16,3 +16,13 @@ _to_delete/
 # Per-installation overrides: LoRaWAN credentials, a site's server address.
 # Never committed. prj_local.conf.example documents what goes in it.
 prj_local.conf
+
+# Python bytecode from the bench scripts under tests/.
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Git lock files parked here rather than deleted. The remote-devices bridge
+# cannot unlink .git/*.lock, so they get moved aside to keep git working. None
+# of it is part of the firmware and it is safe to delete at any time.
+.gitlocks/

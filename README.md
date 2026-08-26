@@ -151,6 +151,10 @@ Add `pristine` to either build script to build from scratch, which is what a cha
 tools\lora-build.bat pristine
 ```
 
+`tests/utils/uplink_server.py` is the other end of the TCP and Wi-Fi variants: run it on a machine
+the concentrator can reach and it decodes and prints every uplink, in values or raw bytes.
+`tests/README.md` covers it, and `tests/pytest` tests the decoder with no hardware attached.
+
 The rest of this section is what those scripts do and why, which is worth reading once.
 
 This repo is a **west manifest repo**: `west.yml` pins Zephyr v4.4.1 and declares `self: path: .`.
