@@ -210,8 +210,20 @@ bool SocketLink::wait_for_ipv4_address(struct net_if* p_iface, uint32_t timeout_
 
     while (waited_ms < timeout_ms)
     {
-        if (net_if_ipv4_get_global_addr(p_iface, NET_ADDR_PREFERRED) != nullptr)
+        const struct in_addr* const p_address =
+            net_if_ipv4_get_global_addr(p_iface, NET_ADDR_PREFERRED);
+
+        if (p_address != nullptr)
         {
+            // Print it. "An address was obtained" is not the useful sentence -
+            // which address is, because it is what says what subnet this device
+            // landed on, and therefore what the uplink server's address has to
+            // be. Leaving it out sent someone to ipconfig on the wrong machine.
+            char text[NET_IPV4_ADDR_LEN];
+
+            LOG_INFO("address %s",
+                     net_addr_ntop(AF_INET, p_address, text, sizeof(text)));
+
             return true;
         }
 
