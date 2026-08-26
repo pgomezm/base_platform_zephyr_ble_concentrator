@@ -1,0 +1,230 @@
+'''
+Build a concentrator variant and file the result under output/.
+
+    python build_flash_tools/run_build_tool.py --variant lora
+    python build_flash_tools/run_build_tool.py --variant wifi --action clean_build
+    python build_flash_tools/run_build_tool.py --variant tcp --desc bench
+
+Same shape as deepsight-polaris-software/build_flash_tools/run_build_tool.py:
+read the version out of src/version.h, take the git commit hash, build, then
+copy the artefact into output/ under a name that says what it is.
+
+The reason the copy exists at all: a build directory holds exactly one
+zephyr.hex and the next build overwrites it. Weeks later, "what is actually on
+that board" has no answer. A file called
+
+    concentrator-lora_0.1.0-dev.4f2a91c3.hex
+
+answers it.
+'''
+
+import argparse
+import logging
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from log_tool import setup_logger  # noqa: E402
+
+logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = PROJECT_ROOT / "output"
+VERSION_FILE = PROJECT_ROOT / "src" / "version.h"
+
+#: One entry per build this repository produces. The board, whatever has to be
+#: passed to select the transport, and which file is the deliverable.
+#:
+#: The Wi-Fi build needs no transport flag: its board conf sets
+#: CONFIG_APP_LINK_WIFI, because that board has neither an SX127x nor a wired
+#: interface and building it any other way is a mistake rather than a choice.
+VARIANTS = {
+    "lora": {
+        "board": "nrf52840dk/nrf52840",
+        "snippet": None,
+        "cmake_args": ["-DBOARD_FLASH_RUNNER=jlink"],
+        "artefact": "zephyr.hex",
+    },
+    "tcp": {
+        "board": "nrf52840dk/nrf52840",
+        # Declares the W5500 in the devicetree, so the build has a network
+        # interface to compile against with no hardware attached.
+        "snippet": "eth-w5500",
+        "cmake_args": ["-DCONFIG_APP_LINK_TCP=y", "-DBOARD_FLASH_RUNNER=jlink"],
+        "artefact": "zephyr.hex",
+    },
+    "wifi": {
+        "board": "esp32s3_devkitc/esp32s3/procpu",
+        "snippet": None,
+        "cmake_args": [],
+        "artefact": "zephyr.bin",
+    },
+}
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Build a concentrator variant.")
+    parser.add_argument("--variant", choices=sorted(VARIANTS), default="lora",
+                        help="which build to produce (default: lora)")
+    parser.add_argument("--action", choices=["build", "clean", "clean_build"], default="build",
+                        help="incremental build, remove the build directory, or both")
+    parser.add_argument("--desc", default=None,
+                        help="label to add to the artefact name, e.g. a bench or a site")
+    parser.add_argument("--log", choices=["debug", "info", "warning", "error", "critical"],
+                        default="info", help="verbosity")
+    return parser.parse_args()
+
+
+def build_dir(variant: str) -> Path:
+    """One directory per variant.
+
+    Explicit rather than left to west's build.dir-fmt, which keys on the board:
+    the LoRa and TCP builds share a board and would overwrite each other, and
+    they do not even share a devicetree - the TCP snippet deletes the SX127x
+    node the board overlay declares.
+    """
+    return PROJECT_ROOT / "build" / variant
+
+
+def get_git_commit_hash() -> str:
+    """First 8 characters of HEAD, with a marker when the tree is dirty.
+
+    The marker is the point. A binary built from uncommitted work, labelled with
+    a clean commit hash, is a file that lies about what is in it - and it lies
+    exactly when it matters, which is when something is wrong and the hash is
+    what you are trusting.
+    """
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT).decode("utf-8").strip()[:8]
+    except Exception:
+        logger.error("Failed to get the git commit hash.")
+        return "nogit"
+
+    try:
+        dirty = subprocess.check_output(
+            ["git", "status", "--porcelain"], cwd=PROJECT_ROOT).decode("utf-8").strip()
+    except Exception:
+        dirty = ""
+
+    if dirty:
+        logger.warning("Working tree is dirty: this artefact is not reproducible from %s", commit)
+        return commit + "-dirty"
+
+    return commit
+
+
+def get_firmware_version(desc: str = None) -> str:
+    """Read VER_MAJOR/MINOR/PATCH and RELEASE_TAG out of src/version.h."""
+    fields = {}
+
+    try:
+        with open(VERSION_FILE, "r", encoding="utf-8") as handle:
+            for line in handle:
+                match = re.match(r"#define\s+(VER_MAJOR|VER_MINOR|VER_PATCH)\s+(\d+)", line)
+                if match:
+                    fields[match.group(1)] = match.group(2)
+
+                match = re.match(r'#define\s+RELEASE_TAG\s+"([^"]*)"', line)
+                if match:
+                    fields["RELEASE_TAG"] = match.group(1)
+    except Exception as error:
+        logger.error("Failed to read %s: %s", VERSION_FILE, error)
+        return "unknown"
+
+    missing = {"VER_MAJOR", "VER_MINOR", "VER_PATCH"} - set(fields)
+    if missing:
+        logger.error("%s is missing %s", VERSION_FILE, ", ".join(sorted(missing)))
+        return "unknown"
+
+    version = f"{fields['VER_MAJOR']}.{fields['VER_MINOR']}.{fields['VER_PATCH']}"
+
+    tag = fields.get("RELEASE_TAG", "")
+    if tag:
+        version += f"-{tag}"
+
+    if desc:
+        version += f"-{desc}"
+
+    return version
+
+
+def run_clean(variant: str) -> None:
+    target = build_dir(variant)
+
+    if target.exists():
+        logger.info("Removing %s", target)
+        shutil.rmtree(target)
+    else:
+        logger.info("Nothing to clean: %s does not exist", target)
+
+
+def run_build(variant: str) -> Path:
+    """Build the variant and return the path to its artefact."""
+    spec = VARIANTS[variant]
+    target = build_dir(variant)
+
+    command = ["west", "build", "-b", spec["board"], "-d", str(target)]
+
+    if spec["snippet"]:
+        command += ["-S", spec["snippet"]]
+
+    if spec["cmake_args"]:
+        command += ["--"] + spec["cmake_args"]
+
+    logger.info("Building %s: %s", variant, " ".join(command))
+    subprocess.run(command, cwd=PROJECT_ROOT, check=True)
+
+    artefact = target / "zephyr" / spec["artefact"]
+
+    if not artefact.exists():
+        raise FileNotFoundError(f"the build reported success but {artefact} is not there")
+
+    return artefact
+
+
+def file_artefact(artefact: Path, variant: str, desc: str = None) -> Path:
+    """Copy the artefact into output/ under a name that identifies it."""
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    version = get_firmware_version(desc)
+    commit = get_git_commit_hash()
+    name = f"concentrator-{variant}_{version}.{commit}{artefact.suffix}"
+
+    destination = OUTPUT_DIR / name
+    shutil.copy2(artefact, destination)
+
+    logger.info("Filed %s (%d bytes)", destination, destination.stat().st_size)
+
+    return destination
+
+
+def main() -> int:
+    args = parse_args()
+    setup_logger(logger, args.log)
+
+    try:
+        if args.action in ("clean", "clean_build"):
+            run_clean(args.variant)
+
+        if args.action == "clean":
+            return 0
+
+        artefact = run_build(args.variant)
+        file_artefact(artefact, args.variant, args.desc)
+    except subprocess.CalledProcessError as error:
+        logger.error("Build failed with status %d", error.returncode)
+        return error.returncode
+    except Exception as error:
+        logger.error("%s", error)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

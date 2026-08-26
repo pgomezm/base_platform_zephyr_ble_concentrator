@@ -72,19 +72,35 @@ def describe(port) -> str:
 
 
 def find_port():
-    """Return the most likely device port, or None.
+    """Return the device port, or None when the answer is not obvious.
+
+    Two boards plugged in at once is normal on this bench - the nRF52840 DK and
+    the ESP32-S3 - and picking one by the order of a list would be arbitrary and
+    silently wrong half the time. When more than one known board is present this
+    returns nothing and says so, and the caller asks for --port.
 
     A J-Link presents several interfaces and the console is on the lowest
-    numbered one, which is why the candidates are sorted before choosing.
+    numbered one, which is why each vendor's candidates are sorted.
     """
     ports = list(list_ports.comports())
+    found = []
 
     for vid, name in KNOWN_VENDORS:
         matches = sorted((p for p in ports if p.vid == vid), key=lambda p: p.device)
         if matches:
-            return matches[0], name
+            found.append((matches[0], name))
 
-    return None, None
+    if not found:
+        return None, None
+
+    if len(found) > 1:
+        print("more than one known board is connected:", file=sys.stderr)
+        for port, name in found:
+            print(f"  {port.device:<8} {name}", file=sys.stderr)
+        print("\nSay which one: --port <COMn>", file=sys.stderr)
+        return None, None
+
+    return found[0]
 
 
 def main() -> int:
@@ -110,7 +126,7 @@ def main() -> int:
     if port is None:
         found, name = find_port()
         if found is None:
-            print("no known board found. Ports seen:", file=sys.stderr)
+            print("no single board to attach to. Ports seen:", file=sys.stderr)
             for p in sorted(list_ports.comports(), key=lambda x: x.device):
                 print("  " + describe(p), file=sys.stderr)
             print("\nPass --port explicitly, or check the cable carries data and "

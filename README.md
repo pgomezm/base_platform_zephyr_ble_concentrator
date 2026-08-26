@@ -134,28 +134,22 @@ system heap Espressif's Wi-Fi and Bluetooth drivers declare. See the comment in 
 
 ### The short way
 
-On Windows, `tools/` has a script per variant. Each one activates the workspace virtualenv, moves
-to the repository root and runs the right `west` invocation, so none of the flags below have to be
-remembered:
+`build_flash_tools/` holds the tools, in the shape `deepsight-polaris-software` uses. Activate the
+workspace virtualenv first, then:
 
-```
-tools\lora-build.bat            tools\wifi-build.bat
-tools\lora-flash.bat            tools\wifi-flash.bat
-                                 tools\wifi-monitor.bat
-```
-
-Add `pristine` to either build script to build from scratch, which is what a change to `Kconfig`,
-`prj.conf` or a devicetree overlay usually needs:
-
-```
-tools\lora-build.bat pristine
+```sh
+python build_flash_tools/run_build_tool.py --variant lora     # lora | tcp | wifi
+python build_flash_tools/run_flash_tool.py --variant lora
+python tests/utils/console.py                                 # the device console
+python build_flash_tools/run_format_tool.py --check           # clang-format
 ```
 
-`tests/utils/uplink_server.py` is the other end of the TCP and Wi-Fi variants: run it on a machine
-the concentrator can reach and it decodes and prints every uplink, in values or raw bytes.
-`tests/README.md` covers it, and `tests/pytest` tests the decoder with no hardware attached.
+`--action clean_build` builds from scratch, which is what a change to `Kconfig`, `prj.conf` or a
+devicetree overlay usually needs. Every build is copied into `output/` under a name carrying the
+version and the commit it came from, so a board can be re-flashed later with exactly what was on
+it; see `build_flash_tools/README.md`.
 
-The rest of this section is what those scripts do and why, which is worth reading once.
+The rest of this section is what those tools do and why, which is worth reading once.
 
 This repo is a **west manifest repo**: `west.yml` pins Zephyr v4.4.1 and declares `self: path: .`.
 It therefore has to live *inside* a west workspace, not be one. Cloning it on its own and running
