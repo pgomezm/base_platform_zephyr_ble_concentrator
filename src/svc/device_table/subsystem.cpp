@@ -8,10 +8,9 @@
 #include "svc/device_table/subsystem.hpp"
 
 #include "config.hpp"
+#include "hal/os/os.hpp"
 #include "hal/system/system.hpp"
 #include "utils/log/log.hpp"
-
-#include <zephyr/kernel.h>
 #include <string.h>
 
 LOG_MODULE_DEFINE(svc_device_table);
@@ -30,7 +29,7 @@ Entry s_entries[config::MAX_DEVICES];
 /// so it needs a lock. It is a plain guarded structure rather than an active
 /// object of its own: it has no behaviour to run on a thread, only state to
 /// protect.
-K_MUTEX_DEFINE(s_mutex);
+hal::os::Mutex s_mutex;
 
 /// Devices evicted because the table was full.
 uint16_t s_evicted_count = 0U;
@@ -103,7 +102,12 @@ Entry* claim_slot()
 
 void initialize()
 {
-    k_mutex_lock(&s_mutex, K_FOREVER);
+    // Before the first lock, and before any other thread exists. Not every
+    // backend can initialise a lock at build time, so hal::os::Mutex asks for
+    // this call rather than offering something only one of them could keep.
+    s_mutex.init();
+
+    s_mutex.lock();
 
     for (auto& entry : s_entries)
     {
@@ -112,14 +116,14 @@ void initialize()
 
     s_evicted_count = 0U;
 
-    k_mutex_unlock(&s_mutex);
+    s_mutex.unlock();
 
     LOG_INFO("device table ready, capacity %u", config::MAX_DEVICES);
 }
 
 void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
 {
-    k_mutex_lock(&s_mutex, K_FOREVER);
+    s_mutex.lock();
 
     Entry* p_entry = find_entry(p_address);
 
@@ -141,7 +145,7 @@ void upsert(const uint8_t* p_address, int8_t rssi, const Reading& reading)
     p_entry->reading = reading;
     p_entry->last_seen_uptime_s = hal::system::get_uptime_seconds();
 
-    k_mutex_unlock(&s_mutex);
+    s_mutex.unlock();
 }
 
 size_t snapshot(Entry* p_out, size_t max_entries)
@@ -154,7 +158,7 @@ size_t snapshot(Entry* p_out, size_t max_entries)
     const uint32_t now_s = hal::system::get_uptime_seconds();
     size_t written = 0U;
 
-    k_mutex_lock(&s_mutex, K_FOREVER);
+    s_mutex.lock();
 
     for (const auto& entry : s_entries)
     {
@@ -187,14 +191,14 @@ size_t snapshot(Entry* p_out, size_t max_entries)
         ++written;
     }
 
-    k_mutex_unlock(&s_mutex);
+    s_mutex.unlock();
 
     return written;
 }
 
 void mark_reported(const uint8_t* p_address, uint16_t update_seq)
 {
-    k_mutex_lock(&s_mutex, K_FOREVER);
+    s_mutex.lock();
 
     Entry* const p_entry = find_entry(p_address);
 
@@ -208,14 +212,14 @@ void mark_reported(const uint8_t* p_address, uint16_t update_seq)
         p_entry->reported_seq = update_seq;
     }
 
-    k_mutex_unlock(&s_mutex);
+    s_mutex.unlock();
 }
 
 uint16_t get_device_count()
 {
     uint16_t count = 0U;
 
-    k_mutex_lock(&s_mutex, K_FOREVER);
+    s_mutex.lock();
 
     for (const auto& entry : s_entries)
     {
@@ -225,7 +229,7 @@ uint16_t get_device_count()
         }
     }
 
-    k_mutex_unlock(&s_mutex);
+    s_mutex.unlock();
 
     return count;
 }

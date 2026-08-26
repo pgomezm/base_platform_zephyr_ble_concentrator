@@ -46,9 +46,8 @@ TimerErrorCode Timer::start(const uint32_t period)
     }
 
     // hal::os::Timer has no failure mode to report: its storage is a fixed
-    // member of this object, never allocated, so there is no null-handle
-    // case the way a FreeRTOS xTimerCreateStatic() call could fail and
-    // return NULL. The error code stays part of the interface for parity
+    // member of this object, never allocated, so there is no handle that could
+    // come back null. The error code stays part of the interface for parity
     // with deepsight-polaris-software's Timer, and for whatever hal::os
     // backend comes next that might have a real failure mode to report.
     return TimerErrorCode::SUCCESS;
@@ -61,9 +60,10 @@ void Timer::stop(void)
 
 TimerErrorCode Timer::start_from_isr(void)
 {
-    // On Zephyr, k_timer_start() is already ISR-safe, so this is the same
-    // call as start(). The separate entry point documents the calling
-    // context, matching deepsight-polaris-software's Timer.
+    // The same call as start(): hal::os::Timer is specified to be safe from
+    // an interrupt, so a backend where that needs a different underlying call
+    // makes it there rather than here. The separate entry point documents the
+    // calling context, matching deepsight-polaris-software's Timer.
     return start();
 }
 

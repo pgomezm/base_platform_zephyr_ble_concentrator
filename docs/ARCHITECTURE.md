@@ -384,6 +384,40 @@ constraint that isn't free to change — replaces the plain description table fr
   exactly one caller, `svc/system_diagnostics`: a module that refreshes from its own thread proves
   that one thread is alive, not that the firmware is.
 
+### Who is allowed to name the RTOS
+
+Three files, and no others:
+
+| file | why |
+| --- | --- |
+| `hal/os/os.hpp` + `hal/os/zephyr/` | it **is** the OS seam |
+| `hal/<module>/zephyr/` | platform backends - that is what a backend is |
+| `utils/log/log.hpp`, `src/config.hpp` | the logging and Kconfig seams, same argument |
+
+Everything else — `app/`, `eda/`, `svc/`, and the transport-named backends under
+`hal/link/` — goes through `hal::os`. That covers threads, queues, timers,
+semaphores, mutexes, delays and uptime.
+
+`hal/link/lora/` and `hal/link/wifi/` are the interesting case. They are HAL
+backends, so they may name Zephyr's *networking* and *LoRaWAN* subsystems: being
+a backend of those is their entire purpose. But the kernel is a separate axis. A
+Wi-Fi backend that waits on `k_sem_take()` has bound itself to Zephyr for a
+reason that has nothing to do with Wi-Fi, and on the day this moves to FreeRTOS
+the networking is what should have to change, not the waiting.
+
+**What this rule cost, when it was not being enforced:** `svc/device_table`
+guarded its table with `K_MUTEX_DEFINE`, `svc/acquisition` ran its report pool on
+`k_msgq_*`, and `src/config.hpp` pulled `zephyr/kernel.h` into every module that
+read a configuration value. Two of those are services — above the HAL entirely —
+and the third is why nobody noticed.
+
+**Where the line is not the EDA.** A semaphore inside a HAL backend, turning a
+driver's asynchronous callback into a call that returns an answer, is correct and
+is not a substitute for events. The EDA is how *services* communicate. Making
+`ILink::connect()` asynchronous to avoid a semaphore would push a waiting state
+machine into `svc::comms` and change the interface for the LoRa backend, whose
+join blocks anyway. One contract for both transports is the point of `ILink`.
+
 ### `utils/log`
 
 - **Owns**: the mapping from the firmware's log macros to the platform's logging backend. It is the

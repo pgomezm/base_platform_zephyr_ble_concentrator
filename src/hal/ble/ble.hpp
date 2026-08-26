@@ -50,8 +50,8 @@ struct AdvReport
 
 /// Callback invoked for each advertising report received.
 ///
-/// Runs in Zephyr's Bluetooth RX thread. The implementation must copy what it
-/// needs and return: no parsing, no blocking, no allocation.
+/// Runs in the Bluetooth stack's own receive context. The implementation must
+/// copy what it needs and return: no parsing, no blocking, no allocation.
 using AdvReportCallback = void (*)(const AdvReport& report);
 
 /// Enum representing possible BLE errors

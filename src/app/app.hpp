@@ -41,11 +41,13 @@ public:
     /// Run the application main loop.
     ///
     /// Every active object runs on its own thread, created during initialize().
-    /// On Zephyr the scheduler is already running by the time main() is
-    /// entered, so this returns immediately and the calling thread ends. It
-    /// exists to keep the entry point identical in shape to the FreeRTOS
-    /// firmware this project follows, where the equivalent call is what starts
-    /// the scheduler.
+    ///
+    /// Whether this returns or never does is a property of the backend. Where
+    /// the scheduler is already running by the time main() is entered, it
+    /// returns immediately and the calling thread ends; where main() is what
+    /// starts the scheduler, this is the call that does it and it never
+    /// returns. Either way the entry point has the same shape, and nothing
+    /// above it has to know which kind it is on.
     void run();
 
     /// Get the application state machine instance.

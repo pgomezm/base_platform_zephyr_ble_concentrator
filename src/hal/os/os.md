@@ -64,3 +64,50 @@ blocked or sleeping, which is the property that matters for `eda::IdleHook`'s co
 a real thread competing for the scheduler, not a hook running with the CPU otherwise doing nothing.
 Nothing in this firmware registers a callback today; the mechanism exists because it was asked
 for, matching `deepsight-polaris-software`'s `eda::IdleHook`.
+
+## Semaphore and Mutex
+
+Added because they were missing, and what is missing gets worked around. Before
+they existed, `svc::device_table` guarded its table with `K_MUTEX_DEFINE`,
+`svc::acquisition` ran its report pool on `k_msgq_*`, and the Wi-Fi backend
+waited on `k_sem_take()`. Two of those are services, above the HAL entirely.
+Nobody chose to bind them to Zephyr; there was simply nowhere else to go.
+
+Both follow the same shape as `Thread`, `Queue` and `Timer`: an opaque
+fixed-size storage struct the caller owns as a member, a `static_assert` in the
+backend that the storage is big enough, and no allocation anywhere.
+
+**`Semaphore` is for adapting a driver, not for talking between services.** Its
+one use is `hal::link`'s Wi-Fi backend: the association result arrives as a
+net_mgmt event on another thread, and `ILink::connect()` is specified to block
+until it knows, because the LoRa backend's join blocks too. One contract for both
+transports is the point of the interface. A *service* blocking on a semaphore
+would be a service that has stopped answering its port — that is what the EDA is
+for.
+
+`give()` takes a `from_isr` flag that Zephyr ignores, because `k_sem_give()` is
+already ISR-safe. It is in the interface because FreeRTOS does not ignore it:
+there the call is `xSemaphoreGiveFromISR()`, with a different signature and a
+yield request. A caller that has to know which one to use is a caller that has to
+know which RTOS it is on.
+
+**`Mutex` is for state two threads share and neither owns.** `svc::device_table`
+is the only case: written by the acquisition thread, read by the comms thread,
+with no behaviour of its own to justify a thread and a port. `lock()` waits
+forever and returns nothing — a lock this firmware cannot take is a lock someone
+is holding forever, which is a bug to find rather than an error to handle.
+
+`init()` has to be called, which `K_MUTEX_DEFINE` did not. That is not an
+oversight: FreeRTOS has no build-time equivalent, `xSemaphoreCreateMutexStatic()`
+is a call, and an interface that only one backend can implement is not an
+interface.
+
+## Queue::try_get
+
+`get()` blocks forever, which is right for an active object's thread: it blocks
+waiting for work and that is the whole purpose of the thread.
+
+`try_get()` is for a consumer already awake for another reason.
+`svc::acquisition` is woken by its port when a report arrives and then drains
+what accumulated; blocking on the queue as well would give the thread a second
+place to wait, and an active object waits in exactly one.

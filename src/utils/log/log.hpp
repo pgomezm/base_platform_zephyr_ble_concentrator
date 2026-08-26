@@ -13,8 +13,8 @@
 /// Every module logs through these names and no module includes a logging
 /// header of the RTOS or the vendor SDK. That is the same reason `hal::os`
 /// exists: the firmware is meant to survive a change of platform, and a call
-/// site that names `zephyr/logging/log.h` pins the file to Zephyr just as
-/// firmly as one that calls `k_msleep()`.
+/// site that names a logging header of the RTOS or the vendor SDK pins the
+/// file to that platform just as firmly as one that calls into its kernel.
 ///
 /// The names match `deepsight-polaris-software`'s `utils::log`, so a file reads
 /// the same in both repositories.

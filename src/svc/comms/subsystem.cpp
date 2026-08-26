@@ -38,8 +38,8 @@ Port s_port;
 
 /// eda::Timer callback: posts DISPATCH_DUE to this service's own port.
 ///
-/// Runs in the hal::os timer-service context (a Zephyr ISR): hands off and
-/// returns, per docs/ARCHITECTURE.md section 4.
+/// Runs in the hal::os timer-service context, which may be an interrupt: hands
+/// off and returns, per docs/ARCHITECTURE.md section 4.
 ///
 /// @param p_timer unused, there is only ever one dispatch timer
 void on_dispatch_timer_expired(eda::Timer* p_timer)

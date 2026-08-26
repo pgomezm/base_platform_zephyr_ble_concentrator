@@ -20,12 +20,10 @@ namespace eda
 /// useful for low-priority background work that should only happen when the
 /// system is idle.
 ///
-/// Ported unchanged from `deepsight-polaris-software`'s `eda::IdleHook`: this
-/// class has no FreeRTOS (or Zephyr) type in it at all, so there was nothing
-/// to adapt. What differs is only where invoke() is called from — see
-/// hal/os/os.hpp's register_idle_callback() and its Zephyr backend's
-/// approximation of an idle hook, since Zephyr has no vApplicationIdleHook()
-/// equivalent.
+/// Ported unchanged from `deepsight-polaris-software`'s `eda::IdleHook`: the
+/// class holds no RTOS type at all, so there was nothing to adapt. What
+/// differs between backends is only where invoke() gets called from, which is
+/// hal/os/os.hpp's register_idle_callback() problem and not this class's.
 ///
 /// @note Only one callback can be registered at a time.
 /// @note The callback must be non-blocking and must not call anything that

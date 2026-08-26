@@ -14,8 +14,15 @@
 
 #include <cstdint>
 
-#include <zephyr/devicetree.h>
-#include <zephyr/kernel.h>
+// This file is a seam, like utils/log/log.hpp and hal/os/os.hpp: its whole job
+// is to turn the build system's configuration symbols into constexpr values,
+// so it is one of the few places allowed to name the build system.
+//
+// Narrowed to what it actually uses. It used to pull in the kernel and
+// devicetree headers, which meant every module that read a configuration value
+// got the whole kernel API in scope whether it wanted it or not - and that is
+// how a rule like this quietly stops being true.
+#include <zephyr/sys/util.h>
 
 namespace config
 {

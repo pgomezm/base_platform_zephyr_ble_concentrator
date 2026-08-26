@@ -1,0 +1,8 @@
+Build artefacts land here, named by variant, version and commit.
+
+The binaries themselves are gitignored; this file only keeps the directory in
+the repository so the tools have somewhere to write on a fresh clone.
+
+The point of the naming is to be able to answer "what exactly is on that board"
+weeks later. A file called zephyr.hex in a build directory cannot answer it,
+because the next build overwrites it.

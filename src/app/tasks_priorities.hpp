@@ -12,11 +12,13 @@ namespace app
 
 /// Thread priorities, one per active object.
 ///
-/// Zephyr convention: lower number means higher priority, and every value here
-/// is a *preemptible* priority (>= 0). Zephyr's own Bluetooth threads run at
-/// cooperative priorities (< 0), so every thread declared here sits below the
-/// BLE stack by construction. That is the first rule in
+/// Lower number means higher priority, and every value here is preemptible.
+/// The radio stack's own threads run above all of these, so every thread
+/// declared here sits below it by construction. That is the first rule in
 /// docs/ARCHITECTURE.md section 4: nothing of ours may delay the radio.
+///
+/// The mapping from these numbers onto a backend's own priority scheme is
+/// hal::os's problem, not this file's.
 ///
 /// The order among our own threads:
 ///   acquisition > comms > app > system_diagnostics

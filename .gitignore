@@ -19,10 +19,23 @@ prj_local.conf
 
 # Python bytecode from the bench scripts under tests/.
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 
 # Git lock files parked here rather than deleted. The remote-devices bridge
 # cannot unlink .git/*.lock, so they get moved aside to keep git working. None
 # of it is part of the firmware and it is safe to delete at any time.
 .gitlocks/
+
+# Build artefacts, named by variant, version and commit hash. Kept locally so a
+# board can be re-flashed with exactly what was on it; not committed, because a
+# repository is not an artefact store.
+output/*.hex
+output/*.bin
+output/*.elf
+
+# OS and editor droppings.
+.DS_Store
+Thumbs.db
+.idea/
+*.log

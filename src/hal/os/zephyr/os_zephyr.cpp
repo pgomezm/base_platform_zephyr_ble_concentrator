@@ -161,6 +161,94 @@ bool Queue::get(void* p_item)
     return k_msgq_get(p_msgq, p_item, K_FOREVER) == 0;
 }
 
+bool Queue::try_get(void* p_item)
+{
+    auto* const p_msgq = reinterpret_cast<struct k_msgq*>(m_storage.bytes);
+
+    return k_msgq_get(p_msgq, p_item, K_NO_WAIT) == 0;
+}
+
+// --- Semaphore ---------------------------------------------------------------
+
+static_assert(sizeof(struct k_sem) <= sizeof(SemaphoreStorage{}.bytes),
+              "SemaphoreStorage is too small for this Zephyr's struct k_sem");
+
+Semaphore::Semaphore() : m_storage{}
+{
+}
+
+void Semaphore::init(uint32_t initial_count, uint32_t max_count)
+{
+    auto* const p_sem = reinterpret_cast<struct k_sem*>(m_storage.bytes);
+
+    (void)k_sem_init(p_sem, initial_count, max_count);
+}
+
+void Semaphore::give(bool from_isr)
+{
+    // k_sem_give() is safe from an ISR on Zephyr, so the flag changes nothing
+    // here. It is in the interface because it changes everything on FreeRTOS,
+    // where the call is xSemaphoreGiveFromISR() with a different signature and
+    // a yield request. A caller that has to know which one to use is a caller
+    // that has to know which RTOS it is on.
+    ARG_UNUSED(from_isr);
+
+    auto* const p_sem = reinterpret_cast<struct k_sem*>(m_storage.bytes);
+
+    k_sem_give(p_sem);
+}
+
+bool Semaphore::take(uint32_t timeout_ms)
+{
+    auto* const p_sem = reinterpret_cast<struct k_sem*>(m_storage.bytes);
+
+    const k_timeout_t timeout =
+        (timeout_ms == Semaphore::WAIT_FOREVER) ? K_FOREVER : K_MSEC(timeout_ms);
+
+    return k_sem_take(p_sem, timeout) == 0;
+}
+
+void Semaphore::reset()
+{
+    auto* const p_sem = reinterpret_cast<struct k_sem*>(m_storage.bytes);
+
+    k_sem_reset(p_sem);
+}
+
+// --- Mutex -------------------------------------------------------------------
+
+static_assert(sizeof(struct k_mutex) <= sizeof(MutexStorage{}.bytes),
+              "MutexStorage is too small for this Zephyr's struct k_mutex");
+
+Mutex::Mutex() : m_storage{}
+{
+}
+
+void Mutex::init()
+{
+    auto* const p_mutex = reinterpret_cast<struct k_mutex*>(m_storage.bytes);
+
+    (void)k_mutex_init(p_mutex);
+}
+
+void Mutex::lock()
+{
+    auto* const p_mutex = reinterpret_cast<struct k_mutex*>(m_storage.bytes);
+
+    // K_FOREVER, and no return value: a lock this firmware cannot take is a
+    // lock someone is holding forever, which is a bug to find rather than an
+    // error to handle. Every critical section behind this is a few field
+    // copies.
+    (void)k_mutex_lock(p_mutex, K_FOREVER);
+}
+
+void Mutex::unlock()
+{
+    auto* const p_mutex = reinterpret_cast<struct k_mutex*>(m_storage.bytes);
+
+    (void)k_mutex_unlock(p_mutex);
+}
+
 // --- Timer ---------------------------------------------------------------
 
 static_assert(sizeof(struct k_timer) + sizeof(TimerUserData) <= sizeof(TimerStorage{}.bytes),

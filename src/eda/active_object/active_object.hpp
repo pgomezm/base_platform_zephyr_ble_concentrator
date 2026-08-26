@@ -19,13 +19,13 @@ class Port; // Forward declaration
 
 /// Active Object composed by an `hal::os::Thread` and an `hal::os::Queue`.
 ///
-/// Ported from `deepsight-polaris-software`'s FreeRTOS active object: same
-/// contract (one thread, one statically allocated event queue, everything
-/// else static too), same public shape (`init_task(priority, name)`, no
-/// externally supplied stack). The only thing that changed is that the
-/// thread and queue are reached through `hal::os` instead of the FreeRTOS API
-/// directly, which is what lets this class compile against any backend
-/// `hal::os` has one for.
+/// Ported from `deepsight-polaris-software`'s active object: same contract
+/// (one thread, one statically allocated event queue, everything else static
+/// too), same public shape (`init_task(priority, name)`, no externally
+/// supplied stack). The only thing that changed is that the thread and queue
+/// are reached through `hal::os` rather than through an RTOS API directly,
+/// which is what lets this class compile against any backend `hal::os` has
+/// one for.
 class ActiveObject
 {
     friend class Port;

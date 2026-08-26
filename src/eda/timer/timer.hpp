@@ -18,11 +18,11 @@ class Timer; // Forward declaration
 /// Callback function type for the timer.
 ///
 /// Ported from `deepsight-polaris-software`'s `eda::CallbackFunction`, which
-/// takes the FreeRTOS `TimerHandle_t` that expired. `hal::os` has no handle
-/// type with that meaning (see hal/os/os.hpp), so the callback instead
-/// receives the `eda::Timer*` that expired, which is the same information:
-/// enough to call get_context()/set_context() on the right timer from a
-/// callback shared by more than one.
+/// takes the backend handle of the timer that expired. `hal::os` exposes no
+/// handle type with that meaning (see hal/os/os.hpp), so the callback receives
+/// the `eda::Timer*` instead, which carries the same information: enough to
+/// call get_context()/set_context() on the right timer from a callback shared
+/// by more than one.
 typedef void (*CallbackFunction)(Timer* p_timer);
 
 /// @enum TimerErrorCode
@@ -80,8 +80,9 @@ public:
     void stop_from_isr(void);
 
 private:
-    /// hal::os expiry callback. Runs in the backend's timer-service context
-    /// (a Zephyr ISR): recovers the eda::Timer and forwards to m_callback.
+    /// hal::os expiry callback. Runs in the backend's timer-service context,
+    /// which may be an interrupt: recovers the eda::Timer and forwards to
+    /// m_callback.
     ///
     /// @param p_context the eda::Timer* that expired, passed back verbatim
     static void expiry_trampoline(void* p_context);

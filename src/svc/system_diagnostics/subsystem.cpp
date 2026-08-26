@@ -45,7 +45,8 @@ Port s_port;
 
 /// eda::Timer callback: posts HEARTBEAT_DUE to this service's own port.
 ///
-/// Runs in the hal::os timer-service context (a Zephyr ISR): hands off and
+/// Runs in the hal::os timer-service context, which may be an interrupt: hands
+/// off and
 /// returns, per docs/ARCHITECTURE.md section 4.
 ///
 /// @param p_timer unused, there is only ever one heartbeat timer

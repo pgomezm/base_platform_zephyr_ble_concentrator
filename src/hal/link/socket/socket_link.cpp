@@ -7,9 +7,9 @@
 
 #include "hal/link/socket/socket_link.hpp"
 
+#include "hal/os/os.hpp"
 #include "utils/log/log.hpp"
 
-#include <zephyr/kernel.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
@@ -227,7 +227,7 @@ bool SocketLink::wait_for_ipv4_address(struct net_if* p_iface, uint32_t timeout_
             return true;
         }
 
-        k_msleep(ADDRESS_POLL_MS);
+        hal::os::delay_ms(ADDRESS_POLL_MS);
         waited_ms += ADDRESS_POLL_MS;
     }
 

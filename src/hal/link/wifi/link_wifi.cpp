@@ -17,9 +17,9 @@
 #include "hal/link/socket/socket_link.hpp"
 
 #include "config.hpp"
+#include "hal/os/os.hpp"
 #include "utils/log/log.hpp"
 
-#include <zephyr/kernel.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/wifi.h>
@@ -48,7 +48,7 @@ constexpr uint32_t ADDRESS_WAIT_MS = 15U * 1000U;
 constexpr uint32_t SCAN_WAIT_MS = 15U * 1000U;
 
 /// Signalled by the net_mgmt handler when a diagnostic scan finishes.
-K_SEM_DEFINE(s_scan_done, 0, 1);
+hal::os::Semaphore s_scan_done;
 
 /// How many access points the last scan found.
 volatile uint16_t s_scan_results = 0;
@@ -94,7 +94,11 @@ const char* band_name(uint8_t band)
 ///
 /// A semaphore rather than a busy poll because the result arrives as an event
 /// on another thread, and there is nothing useful to do until it does.
-K_SEM_DEFINE(s_associate_done, 0, 1);
+///
+/// Through hal::os rather than the kernel directly. This file is a backend of
+/// a *networking* stack, which it may name; the RTOS is a separate axis, and
+/// the day one of them changes the other should not have to.
+hal::os::Semaphore s_associate_done;
 
 /// Whether the association that just completed succeeded.
 ///
@@ -171,7 +175,7 @@ void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
 
     if (event == NET_EVENT_WIFI_SCAN_DONE)
     {
-        k_sem_give(&s_scan_done);
+        s_scan_done.give(false);
         return;
     }
 
@@ -186,7 +190,7 @@ void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
 
         if (s_associating)
         {
-            k_sem_give(&s_associate_done);
+            s_associate_done.give(false);
         }
     }
     else if (event == NET_EVENT_WIFI_DISCONNECT_RESULT)
@@ -200,7 +204,7 @@ void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
             // than as a CONNECT_RESULT with a non-zero status, so waiting for
             // one is waiting for something that never arrives - which cost 27
             // of the 30 seconds this used to spend before giving up.
-            k_sem_give(&s_associate_done);
+            s_associate_done.give(false);
         }
         else
         {
@@ -237,6 +241,11 @@ protected:
 
         if (!s_events_registered)
         {
+            // Both start empty and saturate at one: each is a one-shot "the
+            // answer arrived", never a count of anything.
+            s_associate_done.init(0U, 1U);
+            s_scan_done.init(0U, 1U);
+
             net_mgmt_init_event_callback(&s_wifi_events, &on_wifi_event,
                                          NET_EVENT_WIFI_CONNECT_RESULT |
                                              NET_EVENT_WIFI_DISCONNECT_RESULT |
@@ -288,7 +297,7 @@ private:
 
         s_scan_results = 0U;
         s_scan_found_target = false;
-        k_sem_reset(&s_scan_done);
+        s_scan_done.reset();
 
         if (net_mgmt(NET_REQUEST_WIFI_SCAN, p_iface, &params, sizeof(params)) != 0)
         {
@@ -298,7 +307,7 @@ private:
 
         LOG_INFO("scanning for what is in range:");
 
-        if (k_sem_take(&s_scan_done, K_MSEC(SCAN_WAIT_MS)) != 0)
+        if (!s_scan_done.take(SCAN_WAIT_MS))
         {
             LOG_ERROR("the scan did not finish within %u ms", SCAN_WAIT_MS);
             return;
@@ -377,7 +386,7 @@ private:
 
         s_associated = false;
         s_last_status = 0;
-        k_sem_reset(&s_associate_done);
+        s_associate_done.reset();
         s_associating = true;
 
         LOG_INFO("associating with \"%s\"", config::LINK_WIFI_SSID);
@@ -391,11 +400,11 @@ private:
             return LinkError::CONFIG_ERROR;
         }
 
-        const int wait = k_sem_take(&s_associate_done, K_MSEC(ASSOCIATE_WAIT_MS));
+        const bool answered = s_associate_done.take(ASSOCIATE_WAIT_MS);
 
         s_associating = false;
 
-        if (wait != 0)
+        if (!answered)
         {
             LOG_ERROR("no association result within %u ms; the driver reported nothing at all",
                       ASSOCIATE_WAIT_MS);

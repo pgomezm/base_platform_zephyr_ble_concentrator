@@ -15,10 +15,10 @@
 #include "eda/active_object/active_object.hpp"
 #include "eda/port/port.hpp"
 #include "hal/ble/ble.hpp"
+#include "hal/os/os.hpp"
 #include "hal/system/system.hpp"
 #include "utils/log/log.hpp"
 
-#include <zephyr/kernel.h>
 #include <string.h>
 
 LOG_MODULE_DEFINE(svc_acquisition);
@@ -33,10 +33,10 @@ namespace
 /// Sized by Kconfig, statically allocated. This is the buffer between the BLE
 /// callback and this service's thread: its depth is exactly how much burst the
 /// firmware absorbs before it starts dropping reports.
-char s_report_pool_buffer[config::ADV_REPORT_POOL_SIZE * sizeof(hal::ble::AdvReport)];
+uint8_t s_report_pool_buffer[config::ADV_REPORT_POOL_SIZE * sizeof(hal::ble::AdvReport)];
 
 /// The raw advertising report pool.
-struct k_msgq s_report_pool;
+hal::os::Queue s_report_pool;
 
 /// Reports dropped because the pool was full.
 uint16_t s_dropped_report_count = 0U;
@@ -47,7 +47,8 @@ eda::ActiveObject s_active_object;
 /// The port of this service.
 Port s_port;
 
-/// Zephyr's advertising report callback. Runs in the Bluetooth RX thread.
+/// The advertising report callback. Runs in the Bluetooth stack's own receive
+/// context.
 ///
 /// Copies the report into the pool and posts an event. Nothing else: no
 /// parsing, no filtering beyond what a memcpy costs, no blocking. See
@@ -56,7 +57,9 @@ Port s_port;
 /// @param report the advertising report
 void on_adv_report(const hal::ble::AdvReport& report)
 {
-    if (k_msgq_put(&s_report_pool, &report, K_NO_WAIT) != 0)
+    // from_isr: this runs in the Bluetooth RX thread, not an interrupt, but
+    // the flag is what the interface asks for and the answer is no.
+    if (!s_report_pool.put(&report, false))
     {
         // Saturating rather than wrapping: a wrapped counter would read as
         // healthy right after a burst.
@@ -137,7 +140,10 @@ void drain_report_pool()
 {
     hal::ble::AdvReport report{};
 
-    while (k_msgq_get(&s_report_pool, &report, K_NO_WAIT) == 0)
+    // try_get, not get: this thread was woken by its port and is draining what
+    // accumulated. Blocking on the queue instead would be a second place the
+    // thread waits, and an active object waits in exactly one.
+    while (s_report_pool.try_get(&report))
     {
         ManufacturerFrame frame{};
 
@@ -164,8 +170,8 @@ void drain_report_pool()
 
 bool initialize()
 {
-    k_msgq_init(&s_report_pool, s_report_pool_buffer, sizeof(hal::ble::AdvReport),
-                config::ADV_REPORT_POOL_SIZE);
+    s_report_pool.init(s_report_pool_buffer, sizeof(hal::ble::AdvReport),
+                       config::ADV_REPORT_POOL_SIZE);
 
     s_active_object.init_task(app::TaskPriorities::ACQUISITION, "acquisition");
     s_port.init(app::PortList::ACQUISITION_PORT, s_active_object);

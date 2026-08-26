@@ -28,9 +28,9 @@ enum class Event : uint32_t
 
     /// One or more advertising reports are waiting in the report pool.
     ///
-    /// Posted from the BLE callback in Zephyr's Bluetooth RX thread. The
-    /// handler drains the pool, so several reports may be consumed by a single
-    /// occurrence of this event.
+    /// Posted from the BLE callback, which runs in the Bluetooth stack's own
+    /// receive context. The handler drains the pool, so several reports may be
+    /// consumed by a single occurrence of this event.
     ADV_REPORT_AVAILABLE,
 };
 
