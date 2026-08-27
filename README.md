@@ -7,7 +7,9 @@ everything it collected upstream.
 It ships in two variants that differ only in how those readings leave the device — LoRaWAN or TCP —
 and both run on the same Nordic nRF52840 DK. See "The two variants" below.
 
-`docs/ARCHITECTURE.md` is the design document. This README covers building and running.
+`docs/ARCHITECTURE.md` is the design document and `docs/CODING_STANDARD.md` is the rule set the
+code is written to, including every place it is knowingly broken. This README covers building
+and running.
 
 ## Structure
 
