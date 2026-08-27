@@ -6,8 +6,8 @@
 /// Source file that implements the App.
 
 #include "app.hpp"
-#include "port_list.hpp"
-#include "tasks_priorities.hpp"
+#include "eda_config/port_list.hpp"
+#include "eda_config/tasks_priorities.hpp"
 
 #include "eda/idle_hook/idle_hook.hpp"
 #include "eda/port/port.hpp"
