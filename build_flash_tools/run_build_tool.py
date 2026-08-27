@@ -104,6 +104,8 @@ def parse_args():
                         help="which build to produce (default: lora)")
     parser.add_argument("--action", choices=["build", "clean", "clean_build"], default="build",
                         help="incremental build, remove the build directory, or both")
+    parser.add_argument("--debug", action="store_true",
+                        help="apply prj_debug.conf and build into build/<variant>-debug")
     parser.add_argument("--desc", default=None,
                         help="label to add to the artefact name, e.g. a bench or a site")
     parser.add_argument("--log", choices=["debug", "info", "warning", "error", "critical"],
@@ -111,15 +113,19 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_dir(variant: str) -> Path:
-    """One directory per variant.
+def build_dir(variant: str, debug: bool = False) -> Path:
+    """One directory per variant, and a separate one for its debug build.
+
+    A debug build is a different Kconfig, so sharing a directory with the
+    release build would mean a full reconfigure every time you switch. Keeping
+    them apart costs disk and saves waiting.
 
     Explicit rather than left to west's build.dir-fmt, which keys on the board:
     the LoRa and TCP builds share a board and would overwrite each other, and
     they do not even share a devicetree - the TCP snippet deletes the SX127x
     node the board overlay declares.
     """
-    return PROJECT_ROOT / "build" / variant
+    return PROJECT_ROOT / "build" / (variant + "-debug" if debug else variant)
 
 
 def get_git_commit_hash() -> str:
@@ -185,8 +191,8 @@ def get_firmware_version(desc: str = None) -> str:
     return version
 
 
-def run_clean(variant: str) -> None:
-    target = build_dir(variant)
+def run_clean(variant: str, debug: bool = False) -> None:
+    target = build_dir(variant, debug)
 
     if target.exists():
         logger.info("Removing %s", target)
@@ -195,18 +201,25 @@ def run_clean(variant: str) -> None:
         logger.info("Nothing to clean: %s does not exist", target)
 
 
-def run_build(variant: str) -> Path:
+def run_build(variant: str, debug: bool = False) -> Path:
     """Build the variant and return the path to its artefact."""
     spec = VARIANTS[variant]
-    target = build_dir(variant)
+    target = build_dir(variant, debug)
 
     command = ["west", "build", "-b", spec["board"], "-d", str(target)]
 
     if spec["snippet"]:
         command += ["-S", spec["snippet"]]
 
-    if spec["cmake_args"]:
-        command += ["--"] + spec["cmake_args"]
+    cmake_args = list(spec["cmake_args"])
+
+    if debug:
+        # CMakeLists appends prj_local.conf to whatever arrives here, so the
+        # local overrides still win over the debug overlay.
+        cmake_args.append(f"-DEXTRA_CONF_FILE={PROJECT_ROOT / 'prj_debug.conf'}")
+
+    if cmake_args:
+        command += ["--"] + cmake_args
 
     logger.info("Building %s: %s", variant, " ".join(command))
     subprocess.run(command, cwd=PROJECT_ROOT, check=True)
@@ -241,15 +254,22 @@ def main() -> int:
 
     try:
         if args.action in ("clean", "clean_build"):
-            run_clean(args.variant)
+            run_clean(args.variant, args.debug)
 
         if args.action == "clean":
             return 0
 
         check_prerequisites(args.variant)
 
-        artefact = run_build(args.variant)
-        file_artefact(artefact, args.variant, args.desc)
+        artefact = run_build(args.variant, args.debug)
+
+        # A debug build is for a bench, not for a board that ships. Filing it in
+        # output/ next to the release artefacts is how one ends up flashed by
+        # mistake six weeks later.
+        if args.debug:
+            logger.info("Debug build at %s, not filed in output/", artefact)
+        else:
+            file_artefact(artefact, args.variant, args.desc)
     except subprocess.CalledProcessError as error:
         logger.error("Build failed with status %d", error.returncode)
         return error.returncode

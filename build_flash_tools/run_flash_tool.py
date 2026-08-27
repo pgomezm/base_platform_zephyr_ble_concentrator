@@ -28,6 +28,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Flash a concentrator variant.")
     parser.add_argument("--variant", choices=sorted(VARIANTS), default="lora",
                         help="which build to flash (default: lora)")
+    parser.add_argument("--debug", action="store_true",
+                        help="flash the debug build from build/<variant>-debug")
     parser.add_argument("--file", default=None,
                         help="flash this artefact instead of the build directory's")
     parser.add_argument("--log", choices=["debug", "info", "warning", "error", "critical"],
@@ -39,7 +41,7 @@ def main() -> int:
     args = parse_args()
     setup_logger(logger, args.log)
 
-    target = build_dir(args.variant)
+    target = build_dir(args.variant, args.debug)
 
     if not target.exists():
         logger.error("No build at %s. Build it first with run_build_tool.py --variant %s",
