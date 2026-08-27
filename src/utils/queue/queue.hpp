@@ -29,13 +29,8 @@ class Queue
 {
 public:
     /// Constructor
-    Queue()
-        : m_storage{}
-        , m_head{0U}
-        , m_tail{0U}
-        , m_count{0U}
-    {
-    }
+    Queue() : m_storage{}, m_head{0U}, m_tail{0U}, m_count{0U}
+    {}
 
     /// Push an element to the back of the queue.
     ///
@@ -82,23 +77,38 @@ public:
     }
 
     /// @return true if the queue holds no elements
-    bool is_empty() const { return m_count == 0U; }
+    bool is_empty() const
+    {
+        return m_count == 0U;
+    }
 
     /// @return true if the queue cannot accept another element
-    bool is_full() const { return m_count == CAPACITY; }
+    bool is_full() const
+    {
+        return m_count == CAPACITY;
+    }
 
     /// @return the number of elements currently held
-    size_t size() const { return m_count; }
+    size_t size() const
+    {
+        return m_count;
+    }
 
     /// @return the maximum number of elements
-    static constexpr size_t capacity() { return CAPACITY; }
+    static constexpr size_t capacity()
+    {
+        return CAPACITY;
+    }
 
 private:
     /// Advance a ring index, wrapping at capacity.
     ///
     /// @param index the index to advance
     /// @return the next index
-    static size_t next_index(size_t index) { return (index + 1U) % CAPACITY; }
+    static size_t next_index(size_t index)
+    {
+        return (index + 1U) % CAPACITY;
+    }
 
     /// Element storage
     T m_storage[CAPACITY];

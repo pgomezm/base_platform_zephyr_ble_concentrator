@@ -134,7 +134,8 @@ bool s_events_registered = false;
 /// @param p_callback the registration record, which carries the event payload
 /// @param event which event fired
 /// @param p_iface the interface it fired on, unused
-void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
+void on_wifi_event(struct net_mgmt_event_callback* p_callback,
+                   uint64_t event,
                    struct net_if* p_iface)
 {
     (void)p_iface;
@@ -150,8 +151,8 @@ void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
         {
             const size_t wanted = strlen(config::LINK_WIFI_SSID);
 
-            if ((p_result->ssid_length == wanted) &&
-                (memcmp(p_result->ssid, config::LINK_WIFI_SSID, wanted) == 0))
+            if ((p_result->ssid_length == wanted)
+                && (memcmp(p_result->ssid, config::LINK_WIFI_SSID, wanted) == 0))
             {
                 s_scan_found_target = true;
                 s_target_band = p_result->band;
@@ -160,8 +161,11 @@ void on_wifi_event(struct net_mgmt_event_callback* p_callback, uint64_t event,
             }
 
             LOG_INFO("  %-32.*s  %-8s ch %-3u  %4d dBm  security %u",
-                     p_result->ssid_length, reinterpret_cast<const char*>(p_result->ssid),
-                     band_name(p_result->band), p_result->channel, p_result->rssi,
+                     p_result->ssid_length,
+                     reinterpret_cast<const char*>(p_result->ssid),
+                     band_name(p_result->band),
+                     p_result->channel,
+                     p_result->rssi,
                      static_cast<unsigned>(p_result->security));
 
             if (s_scan_results < UINT16_MAX)
@@ -222,11 +226,11 @@ class WifiLink : public SocketLink
 {
 public:
     WifiLink()
-        : SocketLink({config::LINK_WIFI_SERVER_ADDR, config::LINK_WIFI_SERVER_PORT,
+        : SocketLink({config::LINK_WIFI_SERVER_ADDR,
+                      config::LINK_WIFI_SERVER_PORT,
                       config::LINK_WIFI_CONNECT_TIMEOUT_MS,
                       static_cast<uint8_t>(config::LINK_WIFI_MAX_FRAGMENT)})
-    {
-    }
+    {}
 
 protected:
     LinkError bring_up_network() override
@@ -246,11 +250,11 @@ protected:
             s_associate_done.init(0U, 1U);
             s_scan_done.init(0U, 1U);
 
-            net_mgmt_init_event_callback(&s_wifi_events, &on_wifi_event,
-                                         NET_EVENT_WIFI_CONNECT_RESULT |
-                                             NET_EVENT_WIFI_DISCONNECT_RESULT |
-                                             NET_EVENT_WIFI_SCAN_RESULT |
-                                             NET_EVENT_WIFI_SCAN_DONE);
+            net_mgmt_init_event_callback(
+                &s_wifi_events,
+                &on_wifi_event,
+                NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT
+                    | NET_EVENT_WIFI_SCAN_RESULT | NET_EVENT_WIFI_SCAN_DONE);
             net_mgmt_add_event_callback(&s_wifi_events);
             s_events_registered = true;
         }
@@ -273,7 +277,9 @@ protected:
 
         LOG_INFO("address obtained over DHCP");
 #else
-        if (!apply_static_ipv4(p_iface, config::LINK_WIFI_LOCAL_IP, config::LINK_WIFI_NETMASK,
+        if (!apply_static_ipv4(p_iface,
+                               config::LINK_WIFI_LOCAL_IP,
+                               config::LINK_WIFI_NETMASK,
                                config::LINK_WIFI_GATEWAY))
         {
             return LinkError::CONFIG_ERROR;
@@ -325,8 +331,10 @@ private:
         if (s_scan_found_target)
         {
             LOG_INFO("\"%s\" IS on the air: %s, channel %u, %d dBm (of %u networks seen)",
-                     config::LINK_WIFI_SSID, band_name(s_target_band),
-                     static_cast<unsigned>(s_target_channel), s_target_rssi,
+                     config::LINK_WIFI_SSID,
+                     band_name(s_target_band),
+                     static_cast<unsigned>(s_target_channel),
+                     s_target_rssi,
                      static_cast<unsigned>(s_scan_results));
             LOG_ERROR("so the network is reachable and the association still failed: "
                       "suspect the PSK, or an AP refusing this client");
@@ -334,7 +342,8 @@ private:
         else
         {
             LOG_ERROR("\"%s\" is NOT among the %u networks this radio can see",
-                      config::LINK_WIFI_SSID, static_cast<unsigned>(s_scan_results));
+                      config::LINK_WIFI_SSID,
+                      static_cast<unsigned>(s_scan_results));
             LOG_ERROR("that means one of: it is a 5 GHz network (this chip has no 5 GHz "
                       "radio), the name differs, or it is out of range");
         }
@@ -391,8 +400,7 @@ private:
 
         LOG_INFO("associating with \"%s\"", config::LINK_WIFI_SSID);
 
-        const int result =
-            net_mgmt(NET_REQUEST_WIFI_CONNECT, p_iface, &params, sizeof(params));
+        const int result = net_mgmt(NET_REQUEST_WIFI_CONNECT, p_iface, &params, sizeof(params));
 
         if (result != 0)
         {

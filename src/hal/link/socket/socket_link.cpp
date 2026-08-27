@@ -30,8 +30,7 @@ constexpr uint32_t ADDRESS_POLL_MS = 250U;
 
 SocketLink::SocketLink(const SocketConfig& config)
     : m_config(config), m_socket(-1), m_is_connected(false), m_downlink_callback(nullptr)
-{
-}
+{}
 
 LinkError SocketLink::initialize()
 {
@@ -42,7 +41,8 @@ LinkError SocketLink::initialize()
         return result;
     }
 
-    LOG_INFO("network ready, uplink server %s:%u", m_config.p_server_address,
+    LOG_INFO("network ready, uplink server %s:%u",
+             m_config.p_server_address,
              static_cast<unsigned>(m_config.server_port));
 
     return LinkError::NO_ERROR;
@@ -85,14 +85,17 @@ LinkError SocketLink::connect()
 
     if (zsock_connect(m_socket, reinterpret_cast<struct sockaddr*>(&server), sizeof(server)) < 0)
     {
-        LOG_ERROR("connect to %s:%u failed (%d)", m_config.p_server_address,
-                  static_cast<unsigned>(m_config.server_port), errno);
+        LOG_ERROR("connect to %s:%u failed (%d)",
+                  m_config.p_server_address,
+                  static_cast<unsigned>(m_config.server_port),
+                  errno);
         close_socket();
         return LinkError::CONNECT_ERROR;
     }
 
     m_is_connected = true;
-    LOG_INFO("connected to %s:%u", m_config.p_server_address,
+    LOG_INFO("connected to %s:%u",
+             m_config.p_server_address,
              static_cast<unsigned>(m_config.server_port));
 
     return LinkError::NO_ERROR;
@@ -113,7 +116,8 @@ LinkError SocketLink::send(const uint8_t* p_data, size_t length)
     if (length > get_max_payload_size())
     {
         LOG_ERROR("fragment of %u bytes exceeds the %u byte limit",
-                  static_cast<unsigned>(length), get_max_payload_size());
+                  static_cast<unsigned>(length),
+                  get_max_payload_size());
         return LinkError::PAYLOAD_TOO_LARGE;
     }
 
@@ -175,16 +179,18 @@ uint8_t SocketLink::get_max_uplinks_per_dispatch() const
     return UINT8_MAX;
 }
 
-bool SocketLink::apply_static_ipv4(struct net_if* p_iface, const char* p_ip, const char* p_netmask,
+bool SocketLink::apply_static_ipv4(struct net_if* p_iface,
+                                   const char* p_ip,
+                                   const char* p_netmask,
                                    const char* p_gateway)
 {
     struct in_addr address;
     struct in_addr netmask;
     struct in_addr gateway;
 
-    if ((net_addr_pton(AF_INET, p_ip, &address) != 0) ||
-        (net_addr_pton(AF_INET, p_netmask, &netmask) != 0) ||
-        (net_addr_pton(AF_INET, p_gateway, &gateway) != 0))
+    if ((net_addr_pton(AF_INET, p_ip, &address) != 0)
+        || (net_addr_pton(AF_INET, p_netmask, &netmask) != 0)
+        || (net_addr_pton(AF_INET, p_gateway, &gateway) != 0))
     {
         LOG_ERROR("static address, netmask or gateway is not a valid dotted quad");
         return false;
@@ -221,8 +227,7 @@ bool SocketLink::wait_for_ipv4_address(struct net_if* p_iface, uint32_t timeout_
             // be. Leaving it out sent someone to ipconfig on the wrong machine.
             char text[NET_IPV4_ADDR_LEN];
 
-            LOG_INFO("address %s",
-                     net_addr_ntop(AF_INET, p_address, text, sizeof(text)));
+            LOG_INFO("address %s", net_addr_ntop(AF_INET, p_address, text, sizeof(text)));
 
             return true;
         }

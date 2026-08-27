@@ -40,9 +40,9 @@ HardErrorState s_hard_error_state{s_state_machine};
 
 } // namespace
 
-StateMachine::StateMachine() : eda::StateMachine("app", nullptr), m_current_state_id{StateId::STARTUP}
-{
-}
+StateMachine::StateMachine()
+    : eda::StateMachine("app", nullptr), m_current_state_id{StateId::STARTUP}
+{}
 
 void StateMachine::init_action()
 {

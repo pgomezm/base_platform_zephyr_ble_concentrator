@@ -18,8 +18,7 @@ namespace app
 
 DispatchingState::DispatchingState(eda::StateMachine& state_machine)
     : eda::State("DISPATCHING", &state_machine)
-{
-}
+{}
 
 void DispatchingState::entry()
 {
@@ -30,8 +29,7 @@ void DispatchingState::entry()
 }
 
 void DispatchingState::exit()
-{
-}
+{}
 
 void DispatchingState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
 {

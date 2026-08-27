@@ -28,7 +28,9 @@ ActiveObject::ActiveObject() : m_thread{}, m_queue{}, m_task_queue_memory{}
 
 void ActiveObject::init_task(app::TaskPriorities priority, const char* const p_task_name)
 {
-    m_thread.create(&ActiveObject::process_events, this, static_cast<hal::os::Priority>(priority),
+    m_thread.create(&ActiveObject::process_events,
+                    this,
+                    static_cast<hal::os::Priority>(priority),
                     p_task_name);
 }
 
@@ -47,7 +49,8 @@ PostResult ActiveObject::post_event(Port& port, uint32_t event_id, uint32_t opt_
     return PostResult::OK;
 }
 
-PostResult ActiveObject::post_event_from_isr(Port& port, uint32_t event_id,
+PostResult ActiveObject::post_event_from_isr(Port& port,
+                                             uint32_t event_id,
                                              uint32_t opt_data_address)
 {
     // allocate storage on the heap for the event

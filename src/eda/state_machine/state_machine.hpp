@@ -32,9 +32,9 @@ public:
     ///
     /// @param name A short string used to name the state.
     /// @param state_machine Pointer to the StateMachine that this state belongs to.
-    State(const char* name, StateMachine* state_machine) : m_state_machine(state_machine), m_name(name)
-    {
-    }
+    State(const char* name, StateMachine* state_machine)
+        : m_state_machine(state_machine), m_name(name)
+    {}
 
     /// The Entry is optionally defined by a derived state.
     /// It is the action performed when the state is entered.
@@ -71,10 +71,11 @@ public:
     /// @param name A short string used to name the state machine in logging.
     /// @param initial_state The initial State that the StateMachine should start in.
     StateMachine(const char* name, State* initial_state)
-        : m_current_state(initial_state), m_previous_state(nullptr), m_next_state(nullptr),
+        : m_current_state(initial_state),
+          m_previous_state(nullptr),
+          m_next_state(nullptr),
           m_name(name)
-    {
-    }
+    {}
 
     /// Perform the initial transition.
     void init();

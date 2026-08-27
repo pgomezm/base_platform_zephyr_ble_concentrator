@@ -24,7 +24,8 @@ const struct device* const s_p_watchdog_device = DEVICE_DT_GET(DT_ALIAS(watchdog
 class Watchdog : public IWatchdog
 {
 public:
-    Watchdog() : m_channel_id(-1), m_timeout_ms(0U) {}
+    Watchdog() : m_channel_id(-1), m_timeout_ms(0U)
+    {}
 
     WatchdogError set_timeout(uint32_t timeout_ms) override
     {
@@ -39,8 +40,10 @@ public:
 
         if ((timeout_ms < MIN_TIMEOUT_MS) || (timeout_ms > MAX_TIMEOUT_MS))
         {
-            LOG_ERROR("timeout %u ms is outside [%u, %u]", timeout_ms, MIN_TIMEOUT_MS,
-                    MAX_TIMEOUT_MS);
+            LOG_ERROR("timeout %u ms is outside [%u, %u]",
+                      timeout_ms,
+                      MIN_TIMEOUT_MS,
+                      MAX_TIMEOUT_MS);
             return WatchdogError::INVALID_TIMEOUT;
         }
 

@@ -91,7 +91,9 @@ protected:
     /// @param p_netmask the netmask, as a dotted quad
     /// @param p_gateway the default gateway, as a dotted quad
     /// @return true if the address was accepted
-    static bool apply_static_ipv4(struct net_if* p_iface, const char* p_ip, const char* p_netmask,
+    static bool apply_static_ipv4(struct net_if* p_iface,
+                                  const char* p_ip,
+                                  const char* p_netmask,
                                   const char* p_gateway);
 
     /// Block until an interface has an IPv4 address, or the wait times out.

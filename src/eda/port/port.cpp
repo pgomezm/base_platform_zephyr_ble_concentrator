@@ -120,14 +120,15 @@ void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_
         return;
     }
 
-    LOG_ERROR("critical event %u lost on port %u: %s", event_id,
-              static_cast<unsigned>(port_id), describe(result));
+    LOG_ERROR("critical event %u lost on port %u: %s",
+              event_id,
+              static_cast<unsigned>(port_id),
+              describe(result));
     utils::fault::report(to_fault_reason(result));
     ASSERT_CRITICAL(false);
 }
 
-void Port::send_event_from_isr(app::PortList port_id, uint32_t event_id,
-                               uint32_t opt_data_address)
+void Port::send_event_from_isr(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
     if (is_registered(port_id))
     {

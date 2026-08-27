@@ -17,7 +17,8 @@
 namespace hal::led
 {
 
-Led::Led(hal::gpio::IGpio& gpio) : m_gpio(gpio), m_state(false) {}
+Led::Led(hal::gpio::IGpio& gpio) : m_gpio(gpio), m_state(false)
+{}
 
 Error Led::turn_on()
 {
@@ -49,10 +50,10 @@ bool Led::get_state() const
 }
 
 Manager::Manager()
-    : m_heartbeat_led(
-          hal::gpio::ManagerFactory::get_instance().get_gpio(hal::gpio::GpioInstances::HEARTBEAT_LED)),
-      m_activity_led(
-          hal::gpio::ManagerFactory::get_instance().get_gpio(hal::gpio::GpioInstances::ACTIVITY_LED)),
+    : m_heartbeat_led(hal::gpio::ManagerFactory::get_instance().get_gpio(
+          hal::gpio::GpioInstances::HEARTBEAT_LED)),
+      m_activity_led(hal::gpio::ManagerFactory::get_instance().get_gpio(
+          hal::gpio::GpioInstances::ACTIVITY_LED)),
       m_error_led(
           hal::gpio::ManagerFactory::get_instance().get_gpio(hal::gpio::GpioInstances::ERROR_LED))
 {}

@@ -26,7 +26,8 @@ namespace svc::system_diagnostics
 
 // Every event id addressed to this port has to be a valid index into the port's
 // callback table, or execute_callback() drops it without a word.
-static_assert(static_cast<uint32_t>(Event::HEARTBEAT_DUE) < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
+static_assert(static_cast<uint32_t>(Event::HEARTBEAT_DUE)
+                  < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
               "svc::system_diagnostics has more events than MAX_PORT_CALLBACKS allows");
 
 namespace
@@ -68,7 +69,8 @@ void on_heartbeat_timer_expired(eda::Timer* p_timer)
     (void)p_timer;
 
     eda::Port::send_event_from_isr(app::PortList::SYSTEM_DIAGNOSTICS_PORT,
-                                   static_cast<uint32_t>(Event::HEARTBEAT_DUE), 0);
+                                   static_cast<uint32_t>(Event::HEARTBEAT_DUE),
+                                   0);
 }
 
 /// Fires every heartbeat period.
@@ -81,8 +83,9 @@ uint32_t s_heartbeat_count = 0U;
 void log_health()
 {
     LOG_INFO("health: %u devices tracked, %u reports dropped, %u devices evicted",
-            device_table::get_device_count(), acquisition::get_dropped_report_count(),
-            device_table::get_evicted_count());
+             device_table::get_device_count(),
+             acquisition::get_dropped_report_count(),
+             device_table::get_evicted_count());
 }
 
 /// Show the fault: ERROR and ACTIVITY blinking together, heartbeat off.
@@ -135,8 +138,8 @@ bool initialize()
     s_active_object.init_task(app::TaskPriorities::SYSTEM_DIAGNOSTICS, "diagnostics");
     s_port.init(app::PortList::SYSTEM_DIAGNOSTICS_PORT, s_active_object);
 
-    if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS) !=
-        hal::watchdog::WatchdogError::NO_ERROR)
+    if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS)
+        != hal::watchdog::WatchdogError::NO_ERROR)
     {
         LOG_WARNING("watchdog unavailable, continuing without it");
     }

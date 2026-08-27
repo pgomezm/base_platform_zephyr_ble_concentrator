@@ -45,11 +45,11 @@ class TcpLink : public SocketLink
 {
 public:
     TcpLink()
-        : SocketLink({config::LINK_TCP_SERVER_ADDR, config::LINK_TCP_SERVER_PORT,
+        : SocketLink({config::LINK_TCP_SERVER_ADDR,
+                      config::LINK_TCP_SERVER_PORT,
                       config::LINK_TCP_CONNECT_TIMEOUT_MS,
                       static_cast<uint8_t>(config::LINK_TCP_MAX_FRAGMENT)})
-    {
-    }
+    {}
 
 protected:
     LinkError bring_up_network() override
@@ -73,7 +73,9 @@ protected:
 
         LOG_INFO("address obtained over DHCP");
 #else
-        if (!apply_static_ipv4(p_iface, config::LINK_TCP_LOCAL_IP, config::LINK_TCP_NETMASK,
+        if (!apply_static_ipv4(p_iface,
+                               config::LINK_TCP_LOCAL_IP,
+                               config::LINK_TCP_NETMASK,
                                config::LINK_TCP_GATEWAY))
         {
             return LinkError::CONFIG_ERROR;

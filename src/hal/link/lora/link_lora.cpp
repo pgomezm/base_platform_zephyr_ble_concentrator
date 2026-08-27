@@ -27,7 +27,8 @@
 // If that default ever stops applying, the failure is silent and appears weeks
 // later in the field. This makes it a build error instead.
 #if !defined(CONFIG_LORAWAN_NVM_SETTINGS)
-#error "CONFIG_LORAWAN_NVM_SETTINGS is off: the DevNonce will not survive a reboot and joins will be refused as replays after the first restart. Check that CONFIG_SETTINGS and CONFIG_NVS are enabled."
+#error \
+    "CONFIG_LORAWAN_NVM_SETTINGS is off: the DevNonce will not survive a reboot and joins will be refused as replays after the first restart. Check that CONFIG_SETTINGS and CONFIG_NVS are enabled."
 #endif
 
 LOG_MODULE_DEFINE(hal_link_lora);
@@ -150,9 +151,12 @@ DownlinkCallback s_downlink_callback = nullptr;
 /// pointer. On this target it would work either way — C and C++ share the
 /// calling convention — but the standard does not promise that, and the marker
 /// is where the C boundary is documented. Do not remove it as redundant.
-extern "C" void downlink_callback(uint8_t port, uint8_t flags, int16_t rssi, int8_t snr,
+extern "C" void downlink_callback(uint8_t port,
+                                  uint8_t flags,
+                                  int16_t rssi,
+                                  int8_t snr,
                                   uint8_t length,
-                       const uint8_t* p_data)
+                                  const uint8_t* p_data)
 {
     (void)flags;
 
@@ -190,7 +194,8 @@ struct lorawan_downlink_cb s_downlink_registration = {
 class LoraLink : public ILink
 {
 public:
-    LoraLink() : m_is_joined(false) {}
+    LoraLink() : m_is_joined(false)
+    {}
 
     LinkError initialize() override
     {
@@ -246,7 +251,7 @@ public:
         if (lorawan_set_channels_mask(channel_mask, LORAWAN_CHANNELS_MASK_SIZE_US915) != 0)
         {
             LOG_ERROR("lorawan_set_channels_mask failed for sub-band %u",
-                    static_cast<unsigned>(config::LINK_LORA_SUBBAND));
+                      static_cast<unsigned>(config::LINK_LORA_SUBBAND));
             return LinkError::CONFIG_ERROR;
         }
 
@@ -269,12 +274,14 @@ public:
         lorawan_enable_adr(false);
 
         if (lorawan_set_datarate(
-                static_cast<enum lorawan_datarate>(config::LINK_LORA_INITIAL_DATARATE)) != 0)
+                static_cast<enum lorawan_datarate>(config::LINK_LORA_INITIAL_DATARATE))
+            != 0)
         {
             // Not fatal. The session starts wherever the region default puts
             // it, which is what happened before this existed.
-            LOG_WARNING("could not set the initial data rate to DR%u; starting at the region default",
-                        static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE));
+            LOG_WARNING(
+                "could not set the initial data rate to DR%u; starting at the region default",
+                static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE));
         }
 
         // The concentrator is mounted and does not move, which is the condition
@@ -297,8 +304,15 @@ public:
 
         LOG_INFO("joining: sub-band %u, DR%u, DevEUI %02x%02x%02x%02x%02x%02x%02x%02x",
                  static_cast<unsigned>(config::LINK_LORA_SUBBAND),
-                 static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE), dev_eui[0], dev_eui[1],
-                 dev_eui[2], dev_eui[3], dev_eui[4], dev_eui[5], dev_eui[6], dev_eui[7]);
+                 static_cast<unsigned>(config::LINK_LORA_INITIAL_DATARATE),
+                 dev_eui[0],
+                 dev_eui[1],
+                 dev_eui[2],
+                 dev_eui[3],
+                 dev_eui[4],
+                 dev_eui[5],
+                 dev_eui[6],
+                 dev_eui[7]);
 
         // Blocking, and a single attempt: Zephyr's stack does not retry a
         // failed join. Retrying is the state machine's job, through the
@@ -340,12 +354,15 @@ public:
         if (length > get_available_payload_size())
         {
             LOG_ERROR("payload of %u bytes exceeds the %u bytes this transmission can carry",
-                      static_cast<unsigned>(length), get_available_payload_size());
+                      static_cast<unsigned>(length),
+                      get_available_payload_size());
             return LinkError::PAYLOAD_TOO_LARGE;
         }
 
-        const int result = lorawan_send(1U, const_cast<uint8_t*>(p_data),
-                                        static_cast<uint8_t>(length), LORAWAN_MSG_UNCONFIRMED);
+        const int result = lorawan_send(1U,
+                                        const_cast<uint8_t*>(p_data),
+                                        static_cast<uint8_t>(length),
+                                        LORAWAN_MSG_UNCONFIRMED);
 
         if (result != 0)
         {
@@ -427,8 +444,9 @@ private:
 
         if (length != static_cast<ssize_t>(EUI_SIZE))
         {
-            LOG_ERROR("hwinfo returned %d bytes, expected %u", static_cast<int>(length),
-                    static_cast<unsigned>(EUI_SIZE));
+            LOG_ERROR("hwinfo returned %d bytes, expected %u",
+                      static_cast<int>(length),
+                      static_cast<unsigned>(EUI_SIZE));
             return false;
         }
 

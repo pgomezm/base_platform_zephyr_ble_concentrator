@@ -11,8 +11,12 @@ namespace eda
 {
 
 Timer::Timer(const char* const name, uint32_t period, bool is_periodic, CallbackFunction callback)
-    : m_timer{}, m_callback(callback), m_name(name), m_period(period),
-      m_is_periodic(is_periodic), m_context(nullptr)
+    : m_timer{},
+      m_callback(callback),
+      m_name(name),
+      m_period(period),
+      m_is_periodic(is_periodic),
+      m_context(nullptr)
 {
     m_timer.init(&Timer::expiry_trampoline, this);
 }

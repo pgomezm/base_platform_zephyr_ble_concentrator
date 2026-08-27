@@ -40,7 +40,8 @@ constexpr struct gpio_dt_spec ABSENT_PIN = {};
 class Gpio : public IGpio
 {
 public:
-    explicit Gpio(const struct gpio_dt_spec& spec) : m_spec(spec), m_callback(nullptr) {}
+    explicit Gpio(const struct gpio_dt_spec& spec) : m_spec(spec), m_callback(nullptr)
+    {}
 
     /// Whether the board actually has this pin.
     ///

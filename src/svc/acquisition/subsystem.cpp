@@ -28,7 +28,8 @@ namespace svc::acquisition
 
 // Every event id addressed to this port has to be a valid index into the port's
 // callback table, or execute_callback() drops it without a word.
-static_assert(static_cast<uint32_t>(Event::ADV_REPORT_AVAILABLE) < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
+static_assert(static_cast<uint32_t>(Event::ADV_REPORT_AVAILABLE)
+                  < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
               "svc::acquisition has more events than MAX_PORT_CALLBACKS allows");
 
 namespace
@@ -78,7 +79,8 @@ void on_adv_report(const hal::ble::AdvReport& report)
     }
 
     eda::Port::send_event_from_isr(app::PortList::ACQUISITION_PORT,
-                                   static_cast<uint32_t>(Event::ADV_REPORT_AVAILABLE), 0);
+                                   static_cast<uint32_t>(Event::ADV_REPORT_AVAILABLE),
+                                   0);
 }
 
 /// Try to interpret a raw advertising payload as an endpoint custom frame.
@@ -176,7 +178,8 @@ void drain_report_pool()
 
 bool initialize()
 {
-    s_report_pool.init(s_report_pool_buffer, sizeof(hal::ble::AdvReport),
+    s_report_pool.init(s_report_pool_buffer,
+                       sizeof(hal::ble::AdvReport),
                        config::ADV_REPORT_POOL_SIZE);
 
     s_active_object.init_task(app::TaskPriorities::ACQUISITION, "acquisition");

@@ -22,8 +22,7 @@ namespace app
 
 HardErrorState::HardErrorState(eda::StateMachine& state_machine)
     : eda::State("HARD_ERROR", &state_machine)
-{
-}
+{}
 
 void HardErrorState::entry()
 {
@@ -36,10 +35,12 @@ void HardErrorState::entry()
     // Stop radiating. A device that cannot deliver what it collects should not
     // keep a receiver running and should not keep transmitting.
     eda::Port::send_event_critical(app::PortList::ACQUISITION_PORT,
-                          static_cast<uint32_t>(svc::acquisition::Event::STOP_SCAN), 0);
+                                   static_cast<uint32_t>(svc::acquisition::Event::STOP_SCAN),
+                                   0);
 
     eda::Port::send_event_critical(app::PortList::COMMS_PORT,
-                          static_cast<uint32_t>(svc::comms::Event::STOP_DISPATCH), 0);
+                                   static_cast<uint32_t>(svc::comms::Event::STOP_DISPATCH),
+                                   0);
 
     // No automatic reset on purpose. Rebooting out of an unrecoverable fault
     // erases what caused it. The watchdog is still fed, so the device sits here

@@ -30,7 +30,8 @@ namespace svc::comms
 
 // Every event id addressed to this port has to be a valid index into the port's
 // callback table, or execute_callback() drops it without a word.
-static_assert(static_cast<uint32_t>(Event::STOP_DISPATCH) < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
+static_assert(static_cast<uint32_t>(Event::STOP_DISPATCH)
+                  < static_cast<uint32_t>(MAX_PORT_CALLBACKS),
               "svc::comms has more events than MAX_PORT_CALLBACKS allows");
 
 namespace
@@ -53,11 +54,14 @@ void on_dispatch_timer_expired(eda::Timer* p_timer)
     (void)p_timer;
 
     eda::Port::send_event_from_isr(app::PortList::COMMS_PORT,
-                                   static_cast<uint32_t>(Event::DISPATCH_DUE), 0);
+                                   static_cast<uint32_t>(Event::DISPATCH_DUE),
+                                   0);
 }
 
 /// Fires every dispatch period, once started by Event::START_DISPATCH.
-eda::Timer s_dispatch_timer{"dispatch", config::DISPATCH_PERIOD_MS, true,
+eda::Timer s_dispatch_timer{"dispatch",
+                            config::DISPATCH_PERIOD_MS,
+                            true,
                             &on_dispatch_timer_expired};
 
 /// Whether this service is currently allowed to transmit.
@@ -159,8 +163,12 @@ EndpointRecord to_record(const device_table::Entry& entry, uint32_t now_s)
 /// @param now_s the current uptime, in seconds
 /// @param is_heartbeat whether this is a record-less liveness uplink
 /// @return true if the radio accepted the fragment
-bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t fragment_index,
-                   uint8_t fragment_count, uint32_t now_s, bool is_heartbeat)
+bool send_fragment(const device_table::Entry* p_entries,
+                   uint8_t count,
+                   uint8_t fragment_index,
+                   uint8_t fragment_count,
+                   uint32_t now_s,
+                   bool is_heartbeat)
 {
     UplinkHeader header{};
 
@@ -197,7 +205,8 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
         offset += sizeof(record);
     }
 
-    const hal::link::LinkError result = hal::link::LinkFactory::get_instance().send(s_fragment_buffer, offset);
+    const hal::link::LinkError result =
+        hal::link::LinkFactory::get_instance().send(s_fragment_buffer, offset);
 
     if (result != hal::link::LinkError::NO_ERROR)
     {
@@ -217,8 +226,11 @@ bool send_fragment(const device_table::Entry* p_entries, uint8_t count, uint8_t 
     // place the silence clock has to be reset.
     s_last_uplink_uptime_s = hal::system::get_uptime_seconds();
 
-    LOG_INFO("sent fragment %u/%u: %u records, %u bytes", fragment_index + 1U, fragment_count, count,
-            static_cast<unsigned>(offset));
+    LOG_INFO("sent fragment %u/%u: %u records, %u bytes",
+             fragment_index + 1U,
+             fragment_count,
+             count,
+             static_cast<unsigned>(offset));
 
     return true;
 }
@@ -287,13 +299,15 @@ void send_adr_probe(uint8_t rate_ceiling)
     {
         LOG_ERROR("data rate allows %u bytes, too few for a %u byte header, and the empty probe "
                   "failed to send",
-                  rate_ceiling, static_cast<unsigned>(sizeof(UplinkHeader)));
+                  rate_ceiling,
+                  static_cast<unsigned>(sizeof(UplinkHeader)));
         return;
     }
 
     LOG_WARNING("data rate allows %u bytes, too few for a %u byte header: sent an empty uplink so "
                 "the network can raise it",
-                rate_ceiling, static_cast<unsigned>(sizeof(UplinkHeader)));
+                rate_ceiling,
+                static_cast<unsigned>(sizeof(UplinkHeader)));
 }
 
 /// Build and send the uplink for this dispatch cycle.
@@ -334,7 +348,8 @@ void dispatch()
     if (available <= sizeof(UplinkHeader))
     {
         LOG_INFO("dispatch deferred: %u of %u bytes free this packet, the rest is MAC traffic",
-                 available, rate_ceiling);
+                 available,
+                 rate_ceiling);
         return;
     }
 
@@ -351,7 +366,8 @@ void dispatch()
         ++s_sequence;
 
         LOG_WARNING("%u bytes available: room for a %u byte header but not a %u byte record",
-                    available, static_cast<unsigned>(sizeof(UplinkHeader)),
+                    available,
+                    static_cast<unsigned>(sizeof(UplinkHeader)),
                     static_cast<unsigned>(sizeof(EndpointRecord)));
 
         if (send_fragment(nullptr, 0U, 0U, 1U, hal::system::get_uptime_seconds(), true))
@@ -389,14 +405,16 @@ void dispatch()
     const uint8_t max_uplinks =
         hal::link::LinkFactory::get_instance().get_max_uplinks_per_dispatch();
 
-    const size_t fragments_allowed =
-        (fragments_needed > max_uplinks) ? max_uplinks : fragments_needed;
+    const size_t fragments_allowed = (fragments_needed > max_uplinks) ? max_uplinks
+                                                                      : fragments_needed;
 
     const uint8_t fragment_count = static_cast<uint8_t>(fragments_allowed);
 
-    LOG_INFO("dispatch %u: %u devices pending, sending %u of %u fragments", s_sequence,
-            static_cast<unsigned>(total_records), fragment_count,
-            static_cast<unsigned>(fragments_needed));
+    LOG_INFO("dispatch %u: %u devices pending, sending %u of %u fragments",
+             s_sequence,
+             static_cast<unsigned>(total_records),
+             fragment_count,
+             static_cast<unsigned>(fragments_needed));
 
     size_t sent_records = 0U;
     bool all_sent = true;
@@ -404,11 +422,14 @@ void dispatch()
     for (uint8_t fragment_index = 0U; fragment_index < fragment_count; ++fragment_index)
     {
         const size_t remaining = total_records - sent_records;
-        const uint8_t count = (remaining > records_per_fragment)
-                                  ? records_per_fragment
-                                  : static_cast<uint8_t>(remaining);
+        const uint8_t count = (remaining > records_per_fragment) ? records_per_fragment
+                                                                 : static_cast<uint8_t>(remaining);
 
-        if (!send_fragment(&s_snapshot[sent_records], count, fragment_index, fragment_count, now_s,
+        if (!send_fragment(&s_snapshot[sent_records],
+                           count,
+                           fragment_index,
+                           fragment_count,
+                           now_s,
                            false))
         {
             all_sent = false;
@@ -430,7 +451,7 @@ void dispatch()
     if (all_sent && (sent_records < total_records))
     {
         LOG_INFO("%u devices deferred to the next cycle",
-                static_cast<unsigned>(total_records - sent_records));
+                 static_cast<unsigned>(total_records - sent_records));
     }
 }
 
@@ -476,8 +497,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
                                        ? app::Event::NETWORK_JOINED
                                        : app::Event::NETWORK_JOIN_FAILED;
 
-        eda::Port::send_event_critical(app::PortList::APP_PORT, static_cast<uint32_t>(outcome),
-                                       0U);
+        eda::Port::send_event_critical(app::PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
         break;
     }
 

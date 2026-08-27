@@ -23,8 +23,7 @@ namespace app
 
 ListeningState::ListeningState(eda::StateMachine& state_machine)
     : eda::State("LISTENING", &state_machine)
-{
-}
+{}
 
 void ListeningState::entry()
 {
@@ -44,14 +43,14 @@ void ListeningState::entry()
     // period: the interval this firmware guarantees is between dispatches, not
     // between timer arms.
     eda::Port::send_event_critical(app::PortList::COMMS_PORT,
-                          static_cast<uint32_t>(svc::comms::Event::START_DISPATCH), 0);
+                                   static_cast<uint32_t>(svc::comms::Event::START_DISPATCH),
+                                   0);
 
     LOG_INFO("listening for endpoint advertisements");
 }
 
 void ListeningState::exit()
-{
-}
+{}
 
 void ListeningState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)
 {

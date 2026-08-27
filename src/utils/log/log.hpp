@@ -65,37 +65,41 @@
 #define LOG_MODULE_DEFINE(name) static const char* const s_log_module_name = #name
 #define LOG_MODULE_USE(name) static const char* const s_log_module_name = #name
 
-#define LOG_ERROR(...)                                                                             \
-    do                                                                                             \
-    {                                                                                              \
-        (void)printf("<err> %s: ", s_log_module_name);                                             \
-        (void)printf(__VA_ARGS__);                                                                 \
-        (void)printf("\n");                                                                        \
-    } while (0)
+#define LOG_ERROR(...)                                 \
+    do                                                 \
+    {                                                  \
+        (void)printf("<err> %s: ", s_log_module_name); \
+        (void)printf(__VA_ARGS__);                     \
+        (void)printf("\n");                            \
+    }                                                  \
+    while (0)
 
-#define LOG_WARNING(...)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        (void)printf("<wrn> %s: ", s_log_module_name);                                             \
-        (void)printf(__VA_ARGS__);                                                                 \
-        (void)printf("\n");                                                                        \
-    } while (0)
+#define LOG_WARNING(...)                               \
+    do                                                 \
+    {                                                  \
+        (void)printf("<wrn> %s: ", s_log_module_name); \
+        (void)printf(__VA_ARGS__);                     \
+        (void)printf("\n");                            \
+    }                                                  \
+    while (0)
 
-#define LOG_INFO(...)                                                                              \
-    do                                                                                             \
-    {                                                                                              \
-        (void)printf("<inf> %s: ", s_log_module_name);                                             \
-        (void)printf(__VA_ARGS__);                                                                 \
-        (void)printf("\n");                                                                        \
-    } while (0)
+#define LOG_INFO(...)                                  \
+    do                                                 \
+    {                                                  \
+        (void)printf("<inf> %s: ", s_log_module_name); \
+        (void)printf(__VA_ARGS__);                     \
+        (void)printf("\n");                            \
+    }                                                  \
+    while (0)
 
-#define LOG_DEBUG(...)                                                                             \
-    do                                                                                             \
-    {                                                                                              \
-        (void)printf("<dbg> %s: ", s_log_module_name);                                             \
-        (void)printf(__VA_ARGS__);                                                                 \
-        (void)printf("\n");                                                                        \
-    } while (0)
+#define LOG_DEBUG(...)                                 \
+    do                                                 \
+    {                                                  \
+        (void)printf("<dbg> %s: ", s_log_module_name); \
+        (void)printf(__VA_ARGS__);                     \
+        (void)printf("\n");                            \
+    }                                                  \
+    while (0)
 
 #endif // __ZEPHYR__
 

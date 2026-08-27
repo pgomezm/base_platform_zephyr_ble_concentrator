@@ -40,8 +40,10 @@ bool s_is_scanning = false;
 /// pointer. On this target it would work either way — C and C++ share the
 /// calling convention — but the standard does not promise that, and the marker
 /// is where the C boundary is documented. Do not remove it as redundant.
-extern "C" void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_t adv_type,
-                   struct net_buf_simple* p_buffer)
+extern "C" void scan_callback(const bt_addr_le_t* p_address,
+                              int8_t rssi,
+                              uint8_t adv_type,
+                              struct net_buf_simple* p_buffer)
 {
     (void)adv_type;
 
@@ -59,8 +61,7 @@ extern "C" void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_
     report.address_type = p_address->type;
     report.rssi = rssi;
 
-    const size_t length =
-        (p_buffer->len > MAX_ADV_DATA_SIZE) ? MAX_ADV_DATA_SIZE : p_buffer->len;
+    const size_t length = (p_buffer->len > MAX_ADV_DATA_SIZE) ? MAX_ADV_DATA_SIZE : p_buffer->len;
 
     report.data_length = static_cast<uint8_t>(length);
     memcpy(report.data, p_buffer->data, length);
@@ -71,7 +72,8 @@ extern "C" void scan_callback(const bt_addr_le_t* p_address, int8_t rssi, uint8_
 class Ble : public IBle
 {
 public:
-    Ble() : m_is_initialized(false) {}
+    Ble() : m_is_initialized(false)
+    {}
 
     BleError initialize() override
     {

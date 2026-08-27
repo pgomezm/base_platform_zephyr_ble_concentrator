@@ -31,8 +31,7 @@ uint8_t s_consecutive_errors = 0U;
 
 SoftErrorState::SoftErrorState(eda::StateMachine& state_machine)
     : eda::State("SOFT_ERROR", &state_machine)
-{
-}
+{}
 
 void SoftErrorState::entry()
 {
@@ -53,7 +52,8 @@ void SoftErrorState::entry()
     // Retrying immediately would burn power without changing anything: whatever
     // failed needs time to become available again.
     eda::Port::send_event_critical(app::PortList::COMMS_PORT,
-                          static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK), 0);
+                                   static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK),
+                                   0);
 }
 
 void SoftErrorState::exit()

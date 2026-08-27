@@ -50,13 +50,11 @@ struct SubsystemResponse
     uint32_t payload_address;
 
     SubsystemResponse() : error_code(SubsystemResultCode::OK), payload_address(0)
-    {
-    }
+    {}
 
     SubsystemResponse(SubsystemResultCode error, uint32_t payload)
         : error_code(error), payload_address(payload)
-    {
-    }
+    {}
 };
 
 /// A Port is how one module reaches another.
@@ -102,7 +100,8 @@ public:
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
-    static void send_event_from_isr(app::PortList port_id, uint32_t event_id,
+    static void send_event_from_isr(app::PortList port_id,
+                                    uint32_t event_id,
                                     uint32_t opt_data_address);
 
     /// Send an event the firmware cannot correctly continue without.
@@ -119,7 +118,8 @@ public:
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
-    static void send_event_critical(app::PortList port_id, uint32_t event_id,
+    static void send_event_critical(app::PortList port_id,
+                                    uint32_t event_id,
                                     uint32_t opt_data_address);
 
     /// Port ID
@@ -145,8 +145,7 @@ private:
     /// @param event_id event identifier
     /// @param opt_data_address optional data
     /// @return what became of the event
-    static PostResult deliver(app::PortList port_id, uint32_t event_id,
-                              uint32_t opt_data_address);
+    static PostResult deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address);
 
     /// Pure virtual function to be implemented by derived classes to handle event execution
     ///

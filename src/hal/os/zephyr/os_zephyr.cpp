@@ -128,8 +128,7 @@ static_assert(sizeof(struct k_thread) <= sizeof(ThreadStorage{}.bytes),
               "hal::os::ThreadStorage is too small for struct k_thread");
 
 Thread::Thread() : m_storage{}
-{
-}
+{}
 
 void Thread::create(ThreadEntry entry, void* p_arg, Priority priority, const char* p_name)
 {
@@ -151,10 +150,16 @@ void Thread::create(ThreadEntry entry, void* p_arg, Priority priority, const cha
 
     s_thread_starts[index] = ThreadStart{entry, p_arg};
 
-    const k_tid_t thread_id =
-        k_thread_create(p_thread_data, p_stack, K_THREAD_STACK_SIZEOF(s_stack_pool[0]),
-                        thread_trampoline, &s_thread_starts[index], nullptr, nullptr,
-                        static_cast<int>(priority), 0, K_NO_WAIT);
+    const k_tid_t thread_id = k_thread_create(p_thread_data,
+                                              p_stack,
+                                              K_THREAD_STACK_SIZEOF(s_stack_pool[0]),
+                                              thread_trampoline,
+                                              &s_thread_starts[index],
+                                              nullptr,
+                                              nullptr,
+                                              static_cast<int>(priority),
+                                              0,
+                                              K_NO_WAIT);
 
     k_thread_name_set(thread_id, p_name);
 }
@@ -165,8 +170,7 @@ static_assert(sizeof(struct k_msgq) <= sizeof(QueueStorage{}.bytes),
               "hal::os::QueueStorage is too small for struct k_msgq");
 
 Queue::Queue() : m_storage{}
-{
-}
+{}
 
 void Queue::init(uint8_t* p_buffer, size_t item_size, size_t max_items)
 {
@@ -209,8 +213,7 @@ static_assert(sizeof(struct k_sem) <= sizeof(SemaphoreStorage{}.bytes),
               "SemaphoreStorage is too small for this Zephyr's struct k_sem");
 
 Semaphore::Semaphore() : m_storage{}
-{
-}
+{}
 
 void Semaphore::init(uint32_t initial_count, uint32_t max_count)
 {
@@ -237,8 +240,8 @@ bool Semaphore::take(uint32_t timeout_ms)
 {
     auto* const p_sem = reinterpret_cast<struct k_sem*>(m_storage.bytes);
 
-    const k_timeout_t timeout =
-        (timeout_ms == Semaphore::WAIT_FOREVER) ? K_FOREVER : K_MSEC(timeout_ms);
+    const k_timeout_t timeout = (timeout_ms == Semaphore::WAIT_FOREVER) ? K_FOREVER
+                                                                        : K_MSEC(timeout_ms);
 
     return k_sem_take(p_sem, timeout) == 0;
 }
@@ -256,8 +259,7 @@ static_assert(sizeof(struct k_mutex) <= sizeof(MutexStorage{}.bytes),
               "MutexStorage is too small for this Zephyr's struct k_mutex");
 
 Mutex::Mutex() : m_storage{}
-{
-}
+{}
 
 void Mutex::init()
 {
@@ -291,8 +293,7 @@ static_assert(sizeof(struct k_timer) + sizeof(TimerUserData) <= sizeof(TimerStor
               "callback/context pair");
 
 Timer::Timer() : m_storage{}
-{
-}
+{}
 
 void Timer::init(TimerCallback callback, void* p_context)
 {
@@ -339,9 +340,16 @@ void register_idle_callback(IdleCallback callback)
         // Started lazily, on first registration, rather than unconditionally
         // at boot: a firmware that never registers an idle callback should
         // not pay for a thread that only ever calls k_yield() in a loop.
-        k_thread_create(&s_idle_thread_data, s_idle_thread_stack,
-                        K_THREAD_STACK_SIZEOF(s_idle_thread_stack), idle_approximation_thread,
-                        nullptr, nullptr, nullptr, K_LOWEST_APPLICATION_THREAD_PRIO, 0, K_NO_WAIT);
+        k_thread_create(&s_idle_thread_data,
+                        s_idle_thread_stack,
+                        K_THREAD_STACK_SIZEOF(s_idle_thread_stack),
+                        idle_approximation_thread,
+                        nullptr,
+                        nullptr,
+                        nullptr,
+                        K_LOWEST_APPLICATION_THREAD_PRIO,
+                        0,
+                        K_NO_WAIT);
         k_thread_name_set(&s_idle_thread_data, "idle_hook");
 
         s_idle_thread_started = true;
