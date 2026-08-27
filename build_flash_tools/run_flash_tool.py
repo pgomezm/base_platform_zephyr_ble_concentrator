@@ -7,12 +7,11 @@ Flash a concentrator variant.
 
 The last form is why output/ exists: putting back exactly what was on a board
 last week, without rebuilding it and hoping the result is the same.
-
-Same shape as deepsight-polaris-software/build_flash_tools/run_flash_tool.py.
 '''
 
 import argparse
 import logging
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +44,18 @@ def main() -> int:
     if not target.exists():
         logger.error("No build at %s. Build it first with run_build_tool.py --variant %s",
                      target, args.variant)
+        return 1
+
+    # The runner shells out to esptool, which lives in the workspace
+    # virtualenv. Without it the failure comes from inside west and reads like
+    # a missing package rather than a console that never activated it.
+    if args.variant == "wifi" and shutil.which("esptool") is None:
+        if sys.prefix != sys.base_prefix:
+            logger.error("esptool is not on PATH. The active virtualenv is %s; "
+                         "install it there with: pip install esptool", sys.prefix)
+        else:
+            logger.error("esptool is not on PATH, and no virtualenv is active. "
+                         "Activate the workspace one and try again.")
         return 1
 
     # `west flash` and not `west build -t flash`: the CMake flash target is

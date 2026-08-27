@@ -5,9 +5,8 @@ Build a concentrator variant and file the result under output/.
     python build_flash_tools/run_build_tool.py --variant wifi --action clean_build
     python build_flash_tools/run_build_tool.py --variant tcp --desc bench
 
-Same shape as deepsight-polaris-software/build_flash_tools/run_build_tool.py:
-read the version out of src/version.h, take the git commit hash, build, then
-copy the artefact into output/ under a name that says what it is.
+Reads the version out of src/version.h, takes the git commit hash, builds,
+then copies the artefact into output/ under a name that says what it is.
 
 The reason the copy exists at all: a build directory holds exactly one
 zephyr.hex and the next build overwrites it. Weeks later, "what is actually on
@@ -62,8 +61,41 @@ VARIANTS = {
         "snippet": None,
         "cmake_args": [],
         "artefact": "zephyr.bin",
+        # Espressif's build step shells out to this. It lives in the workspace
+        # virtualenv, so a console that never activated it fails here.
+        "needs_on_path": ["esptool"],
     },
 }
+
+
+def check_prerequisites(variant: str) -> None:
+    """Fail now, with the real reason, rather than inside CMake.
+
+    Forgetting to activate the workspace virtualenv surfaces twenty seconds
+    into a build as "esptool>=5.0.2 not found in PATH", which reads like a
+    missing package and invites installing it system-wide. It is almost always
+    the virtualenv.
+
+    :param variant: which build is about to run
+    :raises RuntimeError: if something the build needs is missing
+    """
+    in_virtualenv = sys.prefix != sys.base_prefix
+
+    for command in VARIANTS[variant].get("needs_on_path", []):
+        if shutil.which(command) is not None:
+            continue
+
+        if in_virtualenv:
+            raise RuntimeError(
+                f"{command} is not on PATH. The active virtualenv is "
+                f"{sys.prefix}; install it there with: pip install {command}")
+
+        raise RuntimeError(
+            f"{command} is not on PATH, and no virtualenv is active. "
+            f"Activate the workspace one and try again.")
+
+    if not in_virtualenv:
+        logger.warning("No virtualenv is active; building with %s", sys.executable)
 
 
 def parse_args():
@@ -213,6 +245,8 @@ def main() -> int:
 
         if args.action == "clean":
             return 0
+
+        check_prerequisites(args.variant)
 
         artefact = run_build(args.variant)
         file_artefact(artefact, args.variant, args.desc)
