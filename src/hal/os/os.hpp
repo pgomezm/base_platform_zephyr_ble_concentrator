@@ -68,9 +68,20 @@ using IdleCallback = void (*)();
 ///
 /// Sized for the backend's thread control block. The backend's
 /// `static_assert` is what proves it is big enough.
+///
+/// Sized with headroom rather than to fit exactly, because the control block is
+/// not a fixed size even on one platform: turning on the thread analyser or the
+/// debug thread info grows it, and a size that fits the release build turns
+/// every debug build into a compile error. 200 bytes is what the nRF52840 needs
+/// with both on.
+///
+/// The cost of the headroom is one `hal::os::Thread` per active object, four in
+/// this firmware, so 256 bytes of RAM that a tighter number would have saved.
+/// That is the wrong thing to optimise: the whole point of opaque storage is
+/// that nothing above this header tracks what the backend keeps in it.
 struct ThreadStorage
 {
-    alignas(void*) uint8_t bytes[192];
+    alignas(void*) uint8_t bytes[256];
 };
 
 /// One thread, including its stack. Statically allocated by the caller as a
