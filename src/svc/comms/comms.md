@@ -4,9 +4,10 @@
 @ingroup grp_svc
 @brief Builds, fragments and dispatches the uplink
 
-Both `deepsight-polaris-software` and `base_platform_baremetal_ble` have exactly one `svc/comms`
-that owns outbound communication, and so does this firmware. Dispatch scheduling, packet building,
-fragmentation and the radio call all live here rather than in four separate services.
+One service owns everything that leaves the device. Dispatch scheduling, packet building,
+fragmentation and the radio call all live here rather than in four separate services, because
+they are one decision — what goes out, when, in how many pieces — and splitting them would mean
+three modules agreeing about it.
 
 ## Contract
 

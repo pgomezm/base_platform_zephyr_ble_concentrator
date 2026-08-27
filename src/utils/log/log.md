@@ -19,33 +19,31 @@ exactly as firmly, and there were 75 of them across 19 files, plus 19 `#include
 <zephyr/logging/log.h>` and 19 mentions of `CONFIG_APP_LOG_LEVEL`. Logging was the largest remaining
 hole in a codebase that is otherwise careful about where the platform is allowed to appear.
 
-The names match `deepsight-polaris-software`'s `utils::log`, so the same file reads the same way in
-both repositories. They do **not** collide with Zephyr's: Zephyr uses `LOG_INF`/`LOG_WRN`/`LOG_ERR`/
-`LOG_DBG`, polaris uses `LOG_INFO`/`LOG_WARNING`/`LOG_ERROR`/`LOG_DEBUG`. That is what makes this
-seam a rename rather than a fight with the SDK's preprocessor.
+The names deliberately do **not** collide with Zephyr's: Zephyr uses `LOG_INF`/`LOG_WRN`/
+`LOG_ERR`/`LOG_DBG`, this seam uses `LOG_INFO`/`LOG_WARNING`/`LOG_ERROR`/`LOG_DEBUG`. That is what
+makes it a rename rather than a fight with the SDK's preprocessor.
 
 ## Macros, not a class
 
-Polaris implements `utils::log` as a `Logger` singleton with an `ILogOutput` backend and an
-`AsyncLogger` that queues formatted strings and flushes them from the idle hook. It has to: bare
-STM32 with FreeRTOS gives you a UART and nothing else.
+The obvious alternative is a `Logger` singleton with a swappable output backend, queuing
+formatted strings and flushing them from a low-priority context. On a bare MCU with nothing but a
+UART, that is what you have to write.
 
-**This firmware deliberately does not port that.** Zephyr already has the same thing and does it
-better, and the difference is not cosmetic:
+**Here it would be a step backwards.** Zephyr already has the same thing and does it better, and
+the difference is not cosmetic:
 
 - Zephyr's logging is *deferred* — `LOG_INFO()` stores the format string **pointer** and the
-  arguments in a ring buffer, and a low-priority thread does the formatting later. Polaris's
-  `AsyncLogger` queues 256 bytes of already-formatted text per entry, which means `vsnprintf` runs
-  in the caller's context, on the caller's stack.
+  arguments in a ring buffer, and a low-priority thread does the formatting later. A `Logger` that
+  queues already-formatted text runs `vsnprintf` in the caller's context, on the caller's stack.
 - A function taking `(const char* fmt, ...)` cannot be deferred. Wrapping Zephyr's macros in a
   `Logger` class would therefore throw away the property that makes them safe to call from a thread
   that must not stall — which, per `docs/ARCHITECTURE.md` §4, is most of them.
 - Per-module runtime filtering, RTT and UART backends, and timestamping already exist and are
   configured through Kconfig rather than code.
 
-So the seam is the *interface* polaris established, over the implementation Zephyr already has. If
-this firmware is ever ported to a platform with no logging subsystem, the `#else` branch of
-`log.hpp` is where polaris's `Logger` would be wired in, and not one call site changes.
+So the seam is an interface over the implementation Zephyr already has. If this firmware is ever
+ported to a platform with no logging subsystem, the `#else` branch of `log.hpp` is where a real
+`Logger` would be wired in, and not one call site changes.
 
 ## Registration
 

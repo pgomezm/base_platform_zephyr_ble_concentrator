@@ -1,9 +1,8 @@
 # build_flash_tools
 
-Python tools for building and flashing, in the shape
-`deepsight-polaris-software` uses: the version comes out of `src/version.h`, the
-commit hash out of git, and the result is filed in `output/` under a name that
-says what it is.
+Python tools for building and flashing. The version comes out of
+`src/version.h`, the commit hash out of git, and the result is filed in
+`output/` under a name that says what it is.
 
 ```sh
 python build_flash_tools/run_build_tool.py --variant lora
@@ -34,10 +33,9 @@ have somewhere to write on a fresh clone; a repository is not an artefact store.
 ## The dirty marker
 
 A tree with uncommitted changes produces `…4f2a91c3-dirty.hex` and a warning.
-Polaris does not do this and it is the one place these tools deliberately
-differ: a binary built from uncommitted work but labelled with a clean commit
-hash is a file that lies about its own contents, and it lies exactly when it
-matters — when something is wrong and the hash is what you are trusting.
+A binary built from uncommitted work but labelled with a clean commit hash is a
+file that lies about its own contents, and it lies exactly when it matters —
+when something is wrong and the hash is what you are trusting.
 
 ## The console
 

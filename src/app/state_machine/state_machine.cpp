@@ -30,9 +30,8 @@ namespace
 /// same order execution eventually uses it.
 StateMachine s_state_machine;
 
-/// The states. Statically allocated, one instance each, exactly as
-/// deepsight-polaris-software expects a StateMachine's states to be owned by
-/// whatever module defines the state machine, not by eda:: itself.
+/// The states. Statically allocated, one instance each. eda::StateMachine does
+/// not own its states; the module that defines the machine does.
 StartupState s_startup_state{s_state_machine};
 ListeningState s_listening_state{s_state_machine};
 DispatchingState s_dispatching_state{s_state_machine};

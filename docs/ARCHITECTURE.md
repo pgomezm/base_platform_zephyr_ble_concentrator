@@ -1,32 +1,22 @@
 # base_platform_zephyr_ble_concentrator — Architecture (v5)
 
 Status: **firmware builds and links** (`prebuilt/concentrator_nrf52840dk.hex`, see the top-level
-README for the verified build/flash procedure). v4 adopted a set of concurrency and documentation
-conventions from the `nRF54LM20 External Device Firmware` architecture doc Pablo brought into this
-discussion. That document is for a different device (a BLE instrument driven by Python over
-serial, for test automation) and is **not** part of this project — but its execution-context
-discipline, module-contract format, and static-memory/overflow philosophy are good practice
-independent of what device they were written for, and this concentrator was missing an explicit
-version of all three. What's borrowed and what's deliberately left out is called out in §4 and §8.
+README for the verified build/flash procedure). v4 adopted an explicit set of concurrency and
+documentation conventions this project had been following only by habit: execution-context
+discipline, a module-contract format, and a static-memory and overflow philosophy. What each one
+covers, and what was left out on purpose, is called out in §4 and §8.
 
-v5 rewrites `src/eda` to match `deepsight-polaris-software`'s `src/eda` millimeter-for-millimeter
-(the static port registry addressed by `app::PortList` id, `StateMachine::change_state()`/
-`return_to_last_state()`/two-phase `set_next_state()`, and the `IdleHook` module polaris has and
-this project's earlier Zephyr port previously did not), and introduces `hal/os` beneath it: a seam
-that wraps every kernel primitive `eda/` uses (thread, queue, timer, idle callback) so `eda/` never
-includes a kernel header directly. `eda/` and everything above it is now written against `hal::os`,
-not against Zephyr, which is what would make a move to another RTOS a new `hal/os/<rtos>/` backend
-instead of a rewrite of `eda/`. A FreeRTOS backend was written to prove that and then removed: it
-could not be compiled here, so its assertions were unverifiable, and sizing the shared storage for
-it cost 320 B of RAM that nothing used. The seam stays; the speculative implementation does not. See §7's new `eda` / `hal/os` entry and
-`src/eda/eda.md` / `src/hal/os/os.md` for the full rationale and the deviations from the polaris
-reference (documented, not silent — same rule as §4.1's overflow counters).
+v5 settles the shape of `src/eda` — the static port registry addressed by `app::PortList` id,
+`StateMachine::change_state()`/`return_to_last_state()`/two-phase `set_next_state()`, and the
+`IdleHook` module — and introduces `hal/os` beneath it: a seam that wraps every kernel primitive
+`eda/` uses (thread, queue, timer, idle callback) so `eda/` never includes a kernel header
+directly. `eda/` and everything above it is written against `hal::os`, not against Zephyr, which is
+what makes a move to another RTOS a new `hal/os/<rtos>/` backend instead of a rewrite of `eda/`.
 
-`deepsight-polaris-software` is the sole reference for this project, for `src/eda` as for
-everything else — an earlier draft of this section pointed at `deepsight-altair-software` for
-`eda/` specifically, which turned out to be unnecessary: that repo's `src/eda` is
-byte-for-byte identical to polaris's, with the sole exception of `Port::MAX_PORT_CALLBACKS`
-(128 in polaris, 48 in the other). This project now uses polaris's value.
+A FreeRTOS backend was written to prove that and then removed: it could not be compiled here, so
+its assertions were unverifiable, and sizing the shared storage for it cost 320 B of RAM that
+nothing used. The seam stays; the speculative implementation does not. See §7's `eda` / `hal/os`
+entries, and `src/eda/eda.md` / `src/hal/os/os.md` for the full rationale.
 
 Locked decisions carried over from v3 unchanged:
 
@@ -423,13 +413,13 @@ join blocks anyway. One contract for both transports is the point of `ILink`.
 - **Owns**: the mapping from the firmware's log macros to the platform's logging backend. It is the
   only file in `src/` that includes `zephyr/logging/log.h`.
 - **Exposes**: `LOG_MODULE_DEFINE()`, `LOG_MODULE_USE()`, `LOG_ERROR()`, `LOG_WARNING()`,
-  `LOG_INFO()`, `LOG_DEBUG()` — the names `deepsight-polaris-software` uses, so a file reads the
-  same in both repositories.
-- **Why it is macros and not polaris's `Logger` class**: Zephyr's logging is deferred, storing the
+  `LOG_INFO()`, `LOG_DEBUG()` — chosen so they do not collide with Zephyr's own `LOG_INF`/
+  `LOG_WRN`/`LOG_ERR`/`LOG_DBG`.
+- **Why it is macros and not a `Logger` class**: Zephyr's logging is deferred, storing the
   format string pointer and the arguments rather than formatted text, so nothing is formatted in
   the caller's context. A function taking `(const char* fmt, ...)` cannot be deferred, so wrapping
   the macros in a class would throw that away — and §4 says most of these call sites are on threads
-  that must not stall. The seam is polaris's interface over Zephyr's implementation. See
+  that must not stall. The seam is an interface over the implementation Zephyr already has. See
   `src/utils/log/log.md`.
 - **Constraint**: no other file in `src/` may name a logging header, a log backend, or
   `CONFIG_APP_LOG_LEVEL`. Same rule as `hal::os`, and for the same reason.
@@ -482,9 +472,8 @@ join blocks anyway. One contract for both transports is the point of `ILink`.
 - **Constraint**: no `new`, no `malloc` (same static-allocation rule as everywhere else); a
   `hal::os::Thread`/`Queue`/`Timer` is a fixed-size byte buffer sized for the backend's control
   block, `static_assert`-checked in the backend's `.cpp`.
-- **Why it exists**: `eda/` is ported from `deepsight-polaris-software`, which is FreeRTOS
-  firmware. `hal/os` is the seam that lets `eda/` be identical to that reference while running on
-  Zephyr — see `src/hal/os/os.md`.
+- **Why it exists**: `eda/` is meant to outlive the RTOS underneath it. `hal/os` is the seam that
+  lets the whole layer move to another kernel by writing one backend — see `src/hal/os/os.md`.
 - **Known deviation**: Zephyr has no public idle-hook equivalent to FreeRTOS's
   `vApplicationIdleHook()`. `hal::os::register_idle_callback()` approximates one with a dedicated,
   lowest-priority thread (see `os_zephyr.cpp`). `eda::IdleHook` exists and is wired up, with no
@@ -551,9 +540,9 @@ operation.
 
 7. Whether the boot/reset-visibility idea in §6 is worth the wire-format change.
 
-8. `eda::IdleHook` has no callback registered anywhere today; it exists because it was asked for,
-   matching `deepsight-polaris-software`. If nothing ever registers one it is a module carrying its
-   weight for nothing, worth revisiting once there is an actual idle-time task to hang off it.
+8. `eda::IdleHook` has no callback registered anywhere today; it exists because it was asked for.
+   If nothing ever registers one it is a module carrying its weight for nothing, worth revisiting
+   once there is an actual idle-time task to hang off it.
 
 ## 10. Where this stands
 

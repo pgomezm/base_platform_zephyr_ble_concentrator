@@ -3,15 +3,14 @@
 @defgroup grp_eda EDA
 @brief Event driven architecture framework
 
-This module provides the event-driven framework every service in this firmware is built on. It is
-ported millimeter-for-millimeter from `deepsight-polaris-software`'s `src/eda`, including the parts
-that only make sense once other modules exist to use them
-(`StateMachine::return_to_last_state()`). The only thing that changed going from that FreeRTOS reference to this
-project is the kernel underneath: `eda/` no longer includes a kernel header directly (FreeRTOS's
-or Zephyr's). It includes `hal/os/os.hpp` instead, and every FreeRTOS call in the reference
-(`xTaskCreateStatic`, `xQueueCreateStatic`, `xTimerCreateStatic`, ...) became a call into that
-abstraction. See `hal/os/os.md` for why, and for the one seam (idle hook) that could only be
-approximated on Zephyr.
+This module provides the event-driven framework every service in this firmware is built on.
+Nothing in it includes a kernel header. It includes `hal/os/os.hpp` instead, and every thread,
+queue and timer it needs is a call into that abstraction, which is what lets the whole layer move
+to another RTOS by writing one backend rather than by being rewritten. See `hal/os/os.md` for the
+one seam — the idle hook — that could only be approximated on Zephyr.
+
+A few pieces are here before anything uses them, `StateMachine::return_to_last_state()` among
+them. They are part of the framework's shape and cost nothing until a module reaches for one.
 
 ## Components
 
@@ -27,8 +26,7 @@ approximated on Zephyr.
 
 `post_event()` puts the event on the target's queue and returns. The queue holds 20 events per
 active object, and a full queue means the event is dropped: counted in `get_dropped_event_count()`,
-logged, and gone. `deepsight-polaris-software` has the same queue and an empty `// TODO: handle
-full queue` where the drop happens, so nothing there records it at all.
+logged, and gone.
 
 Counting is enough for most events and not enough for some, and the line between them is whether
 the event **repeats**:
@@ -77,8 +75,8 @@ handler is guaranteed to run in the receiving module's own thread.
 
 `eda::Port::send_event(app::PortList::COMMS_PORT, event_id, opt_data)` looks the target port up in
 a static registry it joined at `init()` time, rather than requiring the sender to hold a reference
-or pointer to it. This is `deepsight-polaris-software`'s design, carried over unchanged: it means a
-module only needs `app/port_list.hpp` to reach any other module's port, not that module's header.
+or pointer to it. That way a module only needs `app/port_list.hpp` to reach any other module's
+port, not that module's header.
 
 ## Static allocation
 
@@ -88,17 +86,16 @@ and port callback tables are all statically allocated. Queue depth is
 `eda::get_dropped_event_count()`, per docs/ARCHITECTURE.md's no-silent-overflow rule) rather than
 blocking the sender.
 
-## Known, deliberate deviations from deepsight-polaris-software
+## Three decisions worth knowing about
 
-- **`ActiveObject::post_event()`/`post_event_from_isr()` are `void`, not returning a status,
-  matching the reference exactly** — but internally they increment a drop counter on a full queue
-  instead of leaving a bare `// TODO: handle full queue`, since silent overflow is not acceptable
-  in this project's architecture (see docs/ARCHITECTURE.md section 4.1). The signature callers see
-  is unchanged.
-- **`Port::send_event()`/`send_event_from_isr()` check that the target port is actually registered
-  before dereferencing it.** The reference dereferences the registry slot directly in its "happy
-  path" branch, which is a null-pointer dereference if a valid-range port id was never `init()`-ed.
-  Fixed here; the API and the rest of the logic are unchanged.
-- **`Timer`'s callback receives the `eda::Timer*` that expired, not a `TimerHandle_t`.** `hal::os`
-  has no handle type with that meaning (see hal/os/os.hpp); the `Timer*` carries the same
-  information a handle would (which timer fired, so `get_context()` can be called on it).
+- **`post_event()`/`post_event_from_isr()` return a `PostResult`, not `void` or a bare `bool`.** A
+  full queue has to be distinguishable from a port nobody registered, because the two mean
+  different things to `send_event_critical()` and land as different reasons in `utils::fault`.
+  Silent overflow is not acceptable here (docs/ARCHITECTURE.md section 4.1), so the drop is
+  counted and logged as well.
+- **`send_event()`/`send_event_from_isr()` check that the target port is registered before
+  dereferencing it.** A port id that is in range but was never `init()`-ed would otherwise be a
+  null pointer dereference.
+- **`Timer`'s callback receives the `eda::Timer*` that expired, not a backend handle.** `hal::os`
+  exposes no handle type (see hal/os/os.hpp), and the pointer carries the same information: which
+  timer fired, so `get_context()` can be called on it.

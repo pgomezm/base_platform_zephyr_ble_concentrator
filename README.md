@@ -11,9 +11,8 @@ and both run on the same Nordic nRF52840 DK. See "The two variants" below.
 
 ## Structure
 
-The same layering as `deepsight-polaris-software`: an interface header per module, the
-platform-specific implementation in a subdirectory under it, and one `.md` per module describing
-what it owns and what it is not allowed to do.
+An interface header per module, the platform-specific implementation in a subdirectory under it,
+and one `.md` per module describing what it owns and what it is not allowed to do.
 
 ```
 src/
@@ -134,8 +133,7 @@ system heap Espressif's Wi-Fi and Bluetooth drivers declare. See the comment in 
 
 ### The short way
 
-`build_flash_tools/` holds the tools, in the shape `deepsight-polaris-software` uses. Activate the
-workspace virtualenv first, then:
+`build_flash_tools/` holds the tools. Activate the workspace virtualenv first, then:
 
 ```sh
 python build_flash_tools/run_build_tool.py --variant lora     # lora | tcp | wifi

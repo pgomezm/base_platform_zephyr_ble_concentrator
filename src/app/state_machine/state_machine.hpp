@@ -32,9 +32,8 @@ enum class StateId : uint8_t
 /// The application state machine.
 ///
 /// A thin subclass of eda::StateMachine: owns no state objects itself (those
-/// are static globals in state_machine.cpp, exactly as
-/// deepsight-polaris-software's own state machines are expected to be built),
-/// and adds only what an eda::StateMachine does not already provide — a
+/// are statics in state_machine.cpp), and adds only what an
+/// eda::StateMachine does not already provide — a
 /// StateId badge for the current state, for the status word, plus
 /// transition_to(StateId), the one readable place every valid transition is
 /// listed.

@@ -47,9 +47,8 @@ TimerErrorCode Timer::start(const uint32_t period)
 
     // hal::os::Timer has no failure mode to report: its storage is a fixed
     // member of this object, never allocated, so there is no handle that could
-    // come back null. The error code stays part of the interface for parity
-    // with deepsight-polaris-software's Timer, and for whatever hal::os
-    // backend comes next that might have a real failure mode to report.
+    // come back null. The error code stays in the interface for whatever
+    // backend comes next that does have one.
     return TimerErrorCode::SUCCESS;
 }
 
@@ -63,7 +62,7 @@ TimerErrorCode Timer::start_from_isr(void)
     // The same call as start(): hal::os::Timer is specified to be safe from
     // an interrupt, so a backend where that needs a different underlying call
     // makes it there rather than here. The separate entry point documents the
-    // calling context, matching deepsight-polaris-software's Timer.
+    // calling context.
     return start();
 }
 

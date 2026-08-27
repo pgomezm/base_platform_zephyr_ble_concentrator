@@ -32,13 +32,10 @@ enum class PostResult : uint8_t
 
 /// Active Object composed by an `hal::os::Thread` and an `hal::os::Queue`.
 ///
-/// Ported from `deepsight-polaris-software`'s active object: same contract
-/// (one thread, one statically allocated event queue, everything else static
-/// too), same public shape (`init_task(priority, name)`, no externally
-/// supplied stack). The only thing that changed is that the thread and queue
-/// are reached through `hal::os` rather than through an RTOS API directly,
-/// which is what lets this class compile against any backend `hal::os` has
-/// one for.
+/// One thread, one statically allocated event queue, nothing allocated at run
+/// time and no externally supplied stack. The thread and queue are reached
+/// through `hal::os` rather than an RTOS API, which is what lets this class
+/// compile against any backend.
 class ActiveObject
 {
     friend class Port;
@@ -112,12 +109,9 @@ private:
 /// Number of events dropped across every active object because a queue was
 /// full when post_event()/post_event_from_isr() was called.
 ///
-/// Not part of `deepsight-polaris-software`'s ActiveObject, which leaves a
-/// dropped event as an empty `// TODO: handle full queue` in both post
-/// functions. This concentrator's architecture (docs/ARCHITECTURE.md section 4)
-/// requires overflow to be observable rather than silent, so a drop is counted
-/// as well as logged, and the post functions report what happened so
-/// eda::Port::send_event_critical() can act on it.
+/// Overflow has to be observable rather than silent (docs/ARCHITECTURE.md
+/// section 4), so a drop is counted as well as logged, and the post functions
+/// report what happened so eda::Port::send_event_critical() can act on it.
 ///
 /// @return the number of events dropped since boot
 uint32_t get_dropped_event_count();

@@ -27,11 +27,10 @@ large enough; there is no dynamic allocation to get wrong.
 
 ## Why this module exists
 
-`eda/` is ported from `deepsight-polaris-software`, which is FreeRTOS
-firmware. This concentrator runs on Zephyr, whose thread/queue/timer API is unrelated in shape to
-FreeRTOS's. Without a seam, every file in `eda/` would `#include <zephyr/kernel.h>` directly, and
-moving back to FreeRTOS later would mean rewriting `eda/` a second time instead of writing one new
-backend here.
+`eda/` is meant to outlive the RTOS underneath it. Without a seam, every file in it would
+`#include <zephyr/kernel.h>` directly, and moving to another kernel would mean rewriting the whole
+layer instead of writing one new backend here. The thread, queue and timer APIs of two RTOSes are
+rarely alike in shape, so the rewrite would be real work, not a rename.
 
 `hal::os` is that seam. `eda/` calls `hal::os::Thread`, `hal::os::Queue`, `hal::os::Timer` and
 `hal::os::register_idle_callback()` and never touches a kernel type directly.
@@ -63,7 +62,7 @@ registered callback and yields, in a loop. It only actually runs once every othe
 blocked or sleeping, which is the property that matters for `eda::IdleHook`'s contract, but it is
 a real thread competing for the scheduler, not a hook running with the CPU otherwise doing nothing.
 Nothing in this firmware registers a callback today; the mechanism exists because it was asked
-for, matching `deepsight-polaris-software`'s `eda::IdleHook`.
+for.
 
 ## Semaphore and Mutex
 

@@ -13,13 +13,12 @@
 #include <cstdint>
 
 /// Maximum number of distinct event ids a single Port can register a callback
-/// for. Ported from `deepsight-polaris-software`'s `eda::Port`, where this is a
-/// preprocessor `#define` of the same name.
+/// for.
 ///
-/// The value is 32 here rather than the reference's 128. Every Port carries an
-/// array of this many function pointers, so the number costs four bytes of RAM
-/// per port per slot: 128 is 512 B in every port and 2 KB across the four this
-/// firmware has, to index event enums whose longest is ten entries. Each port
+/// Every Port carries an array of this many function pointers, so the number
+/// costs four bytes of RAM per port per slot: at 128 it was 512 B in every port
+/// and 2 KB across the four this firmware has, to index event enums whose
+/// longest is ten entries. Each port
 /// that uses the table static_asserts its own event count against this, so
 /// outgrowing it is a build failure rather than a silent drop inside
 /// execute_callback().
@@ -68,10 +67,9 @@ struct SubsystemResponse
 /// is what keeps the execution contexts in docs/ARCHITECTURE.md section 4
 /// honest.
 ///
-/// Ported from `deepsight-polaris-software`'s `eda::Port`: every port
-/// registers itself into one static table by `app::PortList` id at `init()`
-/// time, and `send_event()`/`send_event_from_isr()` look a port up by that id
-/// rather than requiring the sender to hold a reference to it.
+/// Every port registers itself into one static table by `app::PortList` id at
+/// `init()` time, and `send_event()`/`send_event_from_isr()` look a port up by
+/// that id rather than requiring the sender to hold a reference to it.
 class Port
 {
     friend class ActiveObject;
@@ -138,6 +136,18 @@ protected:
     void execute_callback(uint32_t event_id, uint32_t opt_data_address = 0);
 
 private:
+    /// Look the port up in the registry and hand it the event.
+    ///
+    /// A member rather than a free function because posting is ActiveObject's
+    /// private business and Port is what it grants friendship to.
+    ///
+    /// @param port_id target port
+    /// @param event_id event identifier
+    /// @param opt_data_address optional data
+    /// @return what became of the event
+    static PostResult deliver(app::PortList port_id, uint32_t event_id,
+                              uint32_t opt_data_address);
+
     /// Pure virtual function to be implemented by derived classes to handle event execution
     ///
     /// @param event_id Event identifier

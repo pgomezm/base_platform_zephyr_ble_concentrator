@@ -4,8 +4,7 @@ Apply .clang-format to the C++ sources.
     python build_flash_tools/run_format_tool.py            # rewrite the files
     python build_flash_tools/run_format_tool.py --check    # report, change nothing
 
-The configuration is .clang-format at the repository root, taken verbatim from
-deepsight-polaris-software so both repositories look the same: 4-space indent,
+The configuration is .clang-format at the repository root: 4-space indent,
 100 columns, braces on their own line.
 
 `SortIncludes: Never` is the setting worth knowing about. Include order in this

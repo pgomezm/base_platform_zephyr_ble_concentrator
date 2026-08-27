@@ -4,8 +4,8 @@
 @ingroup grp_svc
 @brief Heartbeat, watchdog and health reporting
 
-Same role this module has in `base_platform_baremetal_ble`: run the checks that say whether the
-device itself is healthy, as opposed to what it is measuring.
+Runs the checks that say whether the device itself is healthy, as opposed to what it is
+measuring.
 
 ## Contract
 

@@ -1,8 +1,7 @@
 # tests
 
 Everything that talks to a running concentrator, and everything that checks the
-firmware from outside it. Laid out the way `deepsight-polaris-software/tests`
-is:
+firmware from outside it:
 
 ```
 tests/
@@ -11,8 +10,8 @@ tests/
 ```
 
 `utils/` is not test code. It is the client side of the device's protocols,
-which a person uses at the bench and a test imports. Polaris keeps
-`scpi_client.py` and `scan_frame_receiver.py` there for the same reason.
+which a person uses at the bench and a test imports. Keeping it out of the test
+files is what lets both use it without one depending on the other.
 
 ## Receiving uplinks
 
@@ -88,4 +87,4 @@ firmware side. This is the other half.
 
 `conftest.py` adds `--host` and `--port` for tests that need a live device.
 Nothing uses them yet; they are there so a hardware test has somewhere to read
-its bench parameters from, the same way polaris does it.
+its bench parameters from.

@@ -80,8 +80,7 @@ class Thread
 {
 public:
     /// Stack size used for every thread created through this class, in
-    /// bytes. One size for every active object, same as
-    /// `deepsight-polaris-software`'s `ActiveObject::s_stack_size`.
+    /// bytes. One size for every active object.
     static constexpr size_t STACK_SIZE = 2048U;
 
     Thread();

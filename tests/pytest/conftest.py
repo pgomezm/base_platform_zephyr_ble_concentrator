@@ -1,8 +1,7 @@
 """Shared fixtures and command-line options.
 
-Same shape as deepsight-polaris-software/tests/pytest/conftest.py: the path
-fix-up so `utils` is importable, pytest_addoption for the bench parameters, and
-fixtures that hand them to the tests.
+The path fix-up so `utils` is importable, pytest_addoption for the bench
+parameters, and fixtures that hand them to the tests.
 """
 
 import sys

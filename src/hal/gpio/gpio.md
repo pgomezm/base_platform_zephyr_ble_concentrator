@@ -26,8 +26,7 @@ one of those pins the behaviour of an LED.
 module was platform code. Splitting the pin out leaves `hal/led/led.cpp` with no
 platform dependency at all — it compiles unchanged against any backend that
 provides an `IGpio` — and gives every future pin-driven peripheral the same
-seam. This is the shape `deepsight-polaris-software` uses, and the reason it
-uses it.
+seam.
 
 ## Constraints
 

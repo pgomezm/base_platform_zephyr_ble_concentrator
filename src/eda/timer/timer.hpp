@@ -17,12 +17,10 @@ class Timer; // Forward declaration
 
 /// Callback function type for the timer.
 ///
-/// Ported from `deepsight-polaris-software`'s `eda::CallbackFunction`, which
-/// takes the backend handle of the timer that expired. `hal::os` exposes no
-/// handle type with that meaning (see hal/os/os.hpp), so the callback receives
-/// the `eda::Timer*` instead, which carries the same information: enough to
-/// call get_context()/set_context() on the right timer from a callback shared
-/// by more than one.
+/// The callback receives the `eda::Timer*` rather than a backend handle:
+/// `hal::os` exposes no handle type (see hal/os/os.hpp), and the pointer
+/// carries the same information — enough to call get_context()/set_context()
+/// on the right timer from a callback shared by more than one.
 typedef void (*CallbackFunction)(Timer* p_timer);
 
 /// @enum TimerErrorCode
