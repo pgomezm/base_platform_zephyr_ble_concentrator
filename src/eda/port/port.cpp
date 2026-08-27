@@ -40,6 +40,40 @@ bool is_registered(app::PortList port_id)
            && (m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object != nullptr);
 }
 
+/// Look the port up and hand it the event.
+///
+/// @param port_id target port
+/// @param event_id event identifier
+/// @param opt_data_address optional data
+/// @return what became of the event
+PostResult deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+{
+    if (!is_registered(port_id))
+    {
+        return PostResult::PORT_NOT_READY;
+    }
+
+    Port* const p_port = m_active_ports_list[static_cast<size_t>(port_id)];
+
+    return p_port->m_active_object->post_event(*p_port, event_id, opt_data_address);
+}
+
+/// @param result a failed post
+/// @return what to latch in utils::fault
+utils::fault::Reason to_fault_reason(PostResult result)
+{
+    return (result == PostResult::PORT_NOT_READY) ? utils::fault::Reason::PORT_NOT_READY
+                                                  : utils::fault::Reason::EVENT_LOST;
+}
+
+/// @param result a failed post
+/// @return text for the log
+const char* describe(PostResult result)
+{
+    return (result == PostResult::PORT_NOT_READY) ? "the port has nothing registered"
+                                                  : "the port queue was full";
+}
+
 } // namespace
 
 Port::Port() : m_port_id{app::PortList::INVALID_PORT}, m_active_object{nullptr}
@@ -77,43 +111,28 @@ void Port::set_event_callback(uint32_t event_id, EventCallback event_callback)
 
 void Port::send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
-    if (is_registered(port_id))
+    // The result is dropped on purpose: post_event() already counted and logged
+    // it. A caller that cannot tolerate losing the event uses
+    // send_event_critical().
+    if (deliver(port_id, event_id, opt_data_address) == PostResult::PORT_NOT_READY)
     {
-        // Discarded on purpose: a dropped event is already counted and logged
-        // inside post_event(). A caller that cannot tolerate the drop uses
-        // send_event_critical() instead.
-        (void)m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event(
-            *m_active_ports_list[static_cast<size_t>(port_id)], event_id, opt_data_address);
-    }
-    else
-    {
-        // TODO: handle uninitialized port
         LOG_WARNING("send_event to unregistered port %u", static_cast<unsigned>(port_id));
     }
 }
 
 void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
-    if (!is_registered(port_id))
+    const PostResult result = deliver(port_id, event_id, opt_data_address);
+
+    if (result == PostResult::OK)
     {
-        LOG_ERROR("critical event %u sent to unregistered port %u", event_id,
-                  static_cast<unsigned>(port_id));
-        utils::fault::report(utils::fault::Reason::PORT_NOT_READY);
-        ASSERT_CRITICAL(false);
         return;
     }
 
-    const bool queued =
-        m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event(
-            *m_active_ports_list[static_cast<size_t>(port_id)], event_id, opt_data_address);
-
-    if (!queued)
-    {
-        LOG_ERROR("critical event %u lost: port %u queue was full", event_id,
-                  static_cast<unsigned>(port_id));
-        utils::fault::report(utils::fault::Reason::EVENT_LOST);
-        ASSERT_CRITICAL(false);
-    }
+    LOG_ERROR("critical event %u lost on port %u: %s", event_id,
+              static_cast<unsigned>(port_id), describe(result));
+    utils::fault::report(to_fault_reason(result));
+    ASSERT_CRITICAL(false);
 }
 
 void Port::send_event_from_isr(app::PortList port_id, uint32_t event_id,
@@ -121,8 +140,11 @@ void Port::send_event_from_isr(app::PortList port_id, uint32_t event_id,
 {
     if (is_registered(port_id))
     {
-        (void)m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object->post_event_from_isr(
-            *m_active_ports_list[static_cast<size_t>(port_id)], event_id, opt_data_address);
+        Port* const p_port = m_active_ports_list[static_cast<size_t>(port_id)];
+
+        // Nothing to report from an interrupt. post_event_from_isr() counts the
+        // drop and the count goes out in the uplink header.
+        (void)p_port->m_active_object->post_event_from_isr(*p_port, event_id, opt_data_address);
     }
     else
     {

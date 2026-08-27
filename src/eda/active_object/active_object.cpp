@@ -32,35 +32,36 @@ void ActiveObject::init_task(app::TaskPriorities priority, const char* const p_t
                     p_task_name);
 }
 
-bool ActiveObject::post_event(Port& port, uint32_t event_id, uint32_t opt_data_address)
+PostResult ActiveObject::post_event(Port& port, uint32_t event_id, uint32_t opt_data_address)
 {
     // allocate storage on the heap for the event
     Event event{&port, event_id, opt_data_address};
     // post the message to the appropriate thread
-    const bool queued = m_queue.put(&event, false);
-    if (!queued)
+    if (!m_queue.put(&event, false))
     {
         ++s_dropped_event_count;
         LOG_WARNING("event queue full, dropped event_id=%u", event_id);
+        return PostResult::QUEUE_FULL;
     }
 
-    return queued;
+    return PostResult::OK;
 }
 
-bool ActiveObject::post_event_from_isr(Port& port, uint32_t event_id, uint32_t opt_data_address)
+PostResult ActiveObject::post_event_from_isr(Port& port, uint32_t event_id,
+                                             uint32_t opt_data_address)
 {
     // allocate storage on the heap for the event
     Event event{&port, event_id, opt_data_address};
     // post the message to the appropriate thread
-    const bool queued = m_queue.put(&event, true);
-    if (!queued)
+    if (!m_queue.put(&event, true))
     {
         // Not logged: this runs in an interrupt. The counter is the record, and
         // it goes out in the uplink header.
         ++s_dropped_event_count;
+        return PostResult::QUEUE_FULL;
     }
 
-    return queued;
+    return PostResult::OK;
 }
 
 void ActiveObject::process_events(void* p_active_object)
