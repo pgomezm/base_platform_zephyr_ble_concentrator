@@ -19,7 +19,9 @@ in: the event is dropped, `svc::comms` never hears it, and a concentrator that
 has entered HARD_ERROR keeps transmitting. Counting the drop makes it visible
 after the fact; asserting makes it stop being a thing that has to be noticed.
 
-Ported from `deepsight-polaris-software`, where the same macro already exists.
+The macro is live only when the build defines `APP_DEBUG_BUILD`. Mapping that
+from whatever the toolchain calls a debug build is the build file's job, not
+this header's.
 
 ## What it is not
 

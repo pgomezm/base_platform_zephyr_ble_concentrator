@@ -226,12 +226,8 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
         break;
     }
 
-    // Deliver the event to anything that registered a callback for it on this
-    // port. The switch above is what this service does with the event; this is
-    // how another module learns the event happened without this service having
-    // to know it exists. `deepsight-polaris-software` calls it from every svc
-    // port for exactly that reason, and leaving it out is what made
-    // eda::Port::set_event_callback() unreachable here.
+    // The switch above is what this service does with the event. This is how
+    // another module hears about it without this service knowing it exists.
     execute_callback(event_id, opt_data_address);
 }
 

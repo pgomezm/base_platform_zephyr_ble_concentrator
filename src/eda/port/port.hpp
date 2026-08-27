@@ -109,20 +109,14 @@ public:
 
     /// Send an event the firmware cannot correctly continue without.
     ///
-    /// Identical to send_event() except for what happens when the target queue
-    /// is full: the drop is logged as an error rather than a warning, and on a
-    /// debug build it trips ASSERT_CRITICAL and the device stops there.
+    /// Same as send_event(), except that a drop is not survivable: it is logged
+    /// as an error, latched in utils::fault, and trips ASSERT_CRITICAL on a
+    /// debug build.
     ///
-    /// The line between the two is whether the event repeats. A periodic or
-    /// interrupt-driven event — a dispatch tick, an advertising report, a
-    /// heartbeat — describes a moment, and losing one costs that moment and
-    /// nothing else; another is already on its way. A one-shot command or
-    /// outcome — start scanning, stop dispatching, the network join succeeded —
-    /// describes a change, and losing it leaves two modules permanently
-    /// disagreeing about what the device is doing, with nothing to correct it.
-    ///
-    /// Not in `deepsight-polaris-software`, which discards the queue result in
-    /// both post functions.
+    /// Use it when the event does not repeat. A tick or an advertising report
+    /// describes a moment and another is already coming; a command or an
+    /// outcome describes a change, and losing one leaves two modules disagreeing
+    /// about what the device is doing forever.
     ///
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier

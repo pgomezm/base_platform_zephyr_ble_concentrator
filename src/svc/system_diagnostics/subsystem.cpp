@@ -16,6 +16,7 @@
 #include "hal/watchdog/watchdog.hpp"
 #include "svc/acquisition/subsystem.hpp"
 #include "svc/device_table/subsystem.hpp"
+#include "utils/fault/fault.hpp"
 #include "utils/log/log.hpp"
 
 LOG_MODULE_DEFINE(svc_system_diagnostics);
@@ -42,6 +43,12 @@ constexpr uint32_t WATCHDOG_TIMEOUT_MS = 10U * HEARTBEAT_PERIOD_MS;
 
 /// How often the health summary is logged, in heartbeats.
 constexpr uint32_t HEALTH_LOG_INTERVAL = 60U;
+
+/// True once the fault has been announced, so the first log happens once.
+bool s_fault_announced = false;
+
+/// Phase of the fault blink. Both LEDs follow it, so they stay in step.
+bool s_fault_blink_on = false;
 
 /// The active object that runs this service.
 eda::ActiveObject s_active_object;
@@ -78,6 +85,49 @@ void log_health()
             device_table::get_evicted_count());
 }
 
+/// Show the fault: ERROR and ACTIVITY blinking together, heartbeat off.
+///
+/// The watchdog keeps being fed, so this blinks until somebody looks at it. A
+/// device that resets itself erases what went wrong.
+///
+/// On a board with no LEDs there is nothing to see and the log is all there is,
+/// which is why the reason is repeated rather than said once.
+void annunciate_fault()
+{
+    auto& leds = hal::led::Manager::get_instance();
+
+    if (!s_fault_announced)
+    {
+        s_fault_announced = true;
+        (void)leds.get_led(hal::led::LedInstances::HEARTBEAT_LED).turn_off();
+        LOG_ERROR("fault: %s", utils::fault::describe(utils::fault::get_reason()));
+    }
+    else if ((s_heartbeat_count % HEALTH_LOG_INTERVAL) == 0U)
+    {
+        LOG_ERROR("fault: %s", utils::fault::describe(utils::fault::get_reason()));
+    }
+    else
+    {
+        // Nothing to say this tick.
+    }
+
+    s_fault_blink_on = !s_fault_blink_on;
+
+    auto& error_led = leds.get_led(hal::led::LedInstances::ERROR_LED);
+    auto& activity_led = leds.get_led(hal::led::LedInstances::ACTIVITY_LED);
+
+    if (s_fault_blink_on)
+    {
+        (void)error_led.turn_on();
+        (void)activity_led.turn_on();
+    }
+    else
+    {
+        (void)error_led.turn_off();
+        (void)activity_led.turn_off();
+    }
+}
+
 } // namespace
 
 bool initialize()
@@ -111,9 +161,20 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
         // Fed from here and nowhere else: a watchdog fed by the thread that
         // needs watching proves only that one thread is alive.
         (void)hal::watchdog::WatchdogFactory::get_instance().refresh();
-        (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::HEARTBEAT_LED).toggle();
 
         ++s_heartbeat_count;
+
+        // A faulted device keeps being fed and keeps blinking. It stops
+        // reporting that it is healthy, because it is not.
+        if (utils::fault::is_active())
+        {
+            annunciate_fault();
+            break;
+        }
+
+        (void)hal::led::Manager::get_instance()
+            .get_led(hal::led::LedInstances::HEARTBEAT_LED)
+            .toggle();
 
         if ((s_heartbeat_count % HEALTH_LOG_INTERVAL) == 0U)
         {
@@ -127,12 +188,8 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
         break;
     }
 
-    // Deliver the event to anything that registered a callback for it on this
-    // port. The switch above is what this service does with the event; this is
-    // how another module learns the event happened without this service having
-    // to know it exists. `deepsight-polaris-software` calls it from every svc
-    // port for exactly that reason, and leaving it out is what made
-    // eda::Port::set_event_callback() unreachable here.
+    // The switch above is what this service does with the event. This is how
+    // another module hears about it without this service knowing it exists.
     execute_callback(event_id, opt_data_address);
 }
 

@@ -31,6 +31,22 @@ target_include_directories(app PRIVATE src)
 # creates the first thread. Read that function before adding a new singleton.
 target_compile_options(app PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-threadsafe-statics>)
 
+# Warnings, on the application only.
+#
+# CONFIG_COMPILER_WARNINGS_AS_ERRORS in prj.conf makes warnings fatal
+# everywhere. Raising the warning level everywhere is a different thing: it
+# would break the build on Zephyr and vendor code this project neither owns nor
+# can fix. So the higher bar is scoped to the code we write.
+target_compile_options(app PRIVATE -Wall -Wextra)
+
+# ASSERT_CRITICAL is live on a debug build only. src/assert/assert.hpp gates on
+# APP_DEBUG_BUILD and knows nothing about where it came from; mapping the build
+# system's own idea of "debug" onto it happens here, which is the one file
+# allowed to know.
+if(CONFIG_DEBUG)
+    target_compile_definitions(app PRIVATE APP_DEBUG_BUILD)
+endif()
+
 # Sources are listed rather than globbed: a file that is added but not built is
 # a mistake worth catching at review time, not at link time.
 target_sources(app PRIVATE
@@ -60,6 +76,9 @@ target_sources(app PRIVATE
     src/hal/os/zephyr/os_zephyr.cpp
     src/hal/system/zephyr/system_zephyr.cpp
     src/hal/watchdog/zephyr/watchdog_zephyr.cpp
+
+    # Utilities
+    src/utils/fault/fault.cpp
 
     # Services
     src/svc/acquisition/subsystem.cpp

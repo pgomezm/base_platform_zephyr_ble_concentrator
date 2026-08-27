@@ -183,6 +183,8 @@ extern "C" void downlink_callback(uint8_t port, uint8_t flags, int16_t rssi, int
 struct lorawan_downlink_cb s_downlink_registration = {
     .port = LW_RECV_PORT_ANY,
     .cb = downlink_callback,
+    // Set so a field added to this struct fails the build instead of passing.
+    .node = {},
 };
 
 class LoraLink : public ILink

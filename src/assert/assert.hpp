@@ -10,11 +10,9 @@
 
 #pragma once
 
-// Ported from `deepsight-polaris-software`'s src/assert/assert.hpp, with one
-// change: the reference gates on BUILD_DEBUG, a symbol its build system
-// defines. Zephyr already has CONFIG_DEBUG for the same idea, so both are
-// accepted and neither repository has to change its build to share this file.
-#if defined(BUILD_DEBUG) || defined(CONFIG_DEBUG)
+// The build defines APP_DEBUG_BUILD; see CMakeLists.txt. This file names no
+// build system of its own, so it moves between them unchanged.
+#if defined(APP_DEBUG_BUILD)
 
 /// Halt if a condition that must never be false is false.
 ///

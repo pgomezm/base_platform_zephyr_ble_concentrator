@@ -10,7 +10,7 @@
 #include "app/port_list.hpp"
 
 #include "eda/port/port.hpp"
-#include "hal/led/led.hpp"
+#include "utils/fault/fault.hpp"
 #include "svc/acquisition/port.hpp"
 #include "svc/comms/port.hpp"
 #include "utils/log/log.hpp"
@@ -29,7 +29,9 @@ void HardErrorState::entry()
 {
     LOG_ERROR("hard error: the device has stopped operating");
 
-    (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::ERROR_LED).turn_on();
+    // svc::system_diagnostics owns the LEDs from here on: ERROR and ACTIVITY
+    // blinking together. Setting one here would only fight it.
+    utils::fault::report(utils::fault::Reason::UNRECOVERABLE);
 
     // Stop radiating. A device that cannot deliver what it collects should not
     // keep a receiver running and should not keep transmitting.
@@ -39,15 +41,15 @@ void HardErrorState::entry()
     eda::Port::send_event_critical(app::PortList::COMMS_PORT,
                           static_cast<uint32_t>(svc::comms::Event::STOP_DISPATCH), 0);
 
-    // Deliberately no automatic reset. A device that reboots itself out of an
-    // unrecoverable fault erases the evidence of what went wrong; the watchdog
-    // in system_diagnostics is the recovery path, and the error LED is the
-    // signal to whoever is standing in front of it.
+    // No automatic reset on purpose. Rebooting out of an unrecoverable fault
+    // erases what caused it. The watchdog is still fed, so the device sits here
+    // blinking until somebody looks at it.
 }
 
 void HardErrorState::exit()
 {
-    (void)hal::led::Manager::get_instance().get_led(hal::led::LedInstances::ERROR_LED).turn_off();
+    // Never runs: this state is terminal. The fault latch does not clear
+    // either, so nothing turns the blink off short of a reset.
 }
 
 void HardErrorState::dispatch_event(uint32_t event_id, uint32_t opt_data_address)

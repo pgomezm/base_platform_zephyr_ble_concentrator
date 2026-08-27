@@ -8,6 +8,7 @@
 #include "eda/port/port.hpp"
 
 #include "assert/assert.hpp"
+#include "utils/fault/fault.hpp"
 #include "utils/log/log.hpp"
 
 LOG_MODULE_USE(eda);
@@ -97,6 +98,7 @@ void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_
     {
         LOG_ERROR("critical event %u sent to unregistered port %u", event_id,
                   static_cast<unsigned>(port_id));
+        utils::fault::report(utils::fault::Reason::PORT_NOT_READY);
         ASSERT_CRITICAL(false);
         return;
     }
@@ -109,6 +111,7 @@ void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_
     {
         LOG_ERROR("critical event %u lost: port %u queue was full", event_id,
                   static_cast<unsigned>(port_id));
+        utils::fault::report(utils::fault::Reason::EVENT_LOST);
         ASSERT_CRITICAL(false);
     }
 }

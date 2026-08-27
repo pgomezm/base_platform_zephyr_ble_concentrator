@@ -66,6 +66,37 @@ extern "C" void idle_approximation_thread(void*, void*, void*)
     }
 }
 
+/// What a thread needs to start, kept on this side so nothing has to be cast.
+struct ThreadStart
+{
+    ThreadEntry entry;
+    void* p_arg;
+};
+
+/// One slot per thread, alongside the stack pool and indexed the same way.
+ThreadStart s_thread_starts[MAX_THREADS] = {};
+
+/// The backend's thread entry point takes three arguments; hal::os promises
+/// one. This adapts between them, the same way expiry_trampoline does for
+/// timers.
+///
+/// It is a real function with the backend's signature rather than a cast of the
+/// caller's. Casting a function pointer to a different signature and calling
+/// through it is undefined behaviour, even on a target whose calling convention
+/// makes it work by accident.
+void thread_trampoline(void* p_start, void* p_unused_1, void* p_unused_2)
+{
+    (void)p_unused_1;
+    (void)p_unused_2;
+
+    const auto* const p_this_start = static_cast<const ThreadStart*>(p_start);
+
+    if ((p_this_start != nullptr) && (p_this_start->entry != nullptr))
+    {
+        p_this_start->entry(p_this_start->p_arg);
+    }
+}
+
 /// User data stored per timer: the callback and its context, packed together
 /// since Zephyr's k_timer only offers one user-data slot.
 struct TimerUserData
@@ -113,12 +144,16 @@ void Thread::create(ThreadEntry entry, void* p_arg, Priority priority, const cha
         return;
     }
 
-    k_thread_stack_t* const p_stack = s_stack_pool[s_next_stack_index];
+    const size_t index = s_next_stack_index;
     ++s_next_stack_index;
+
+    k_thread_stack_t* const p_stack = s_stack_pool[index];
+
+    s_thread_starts[index] = ThreadStart{entry, p_arg};
 
     const k_tid_t thread_id =
         k_thread_create(p_thread_data, p_stack, K_THREAD_STACK_SIZEOF(s_stack_pool[0]),
-                        reinterpret_cast<k_thread_entry_t>(entry), p_arg, nullptr, nullptr,
+                        thread_trampoline, &s_thread_starts[index], nullptr, nullptr,
                         static_cast<int>(priority), 0, K_NO_WAIT);
 
     k_thread_name_set(thread_id, p_name);
