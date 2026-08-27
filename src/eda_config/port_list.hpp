@@ -1,21 +1,25 @@
-/// @addtogroup grp_app
+/// @addtogroup grp_eda_config
 /// @{
 ///
 /// @file port_list.hpp
 ///
-/// Header file that declares the enumeration of the ports used by the application.
+/// Header file that declares the ports this project gives eda:: to work with.
 
 #pragma once
 
 #include <cstdint>
 
-namespace app
+namespace eda_config
 {
 
 /// Identifier of every port in the firmware.
 ///
 /// One entry per module that owns an eda::Port. Used for logging and for
 /// asserting that an event reached the port it was addressed to.
+///
+/// This list is the project's, but the header path and the type name are
+/// eda::'s: it includes "eda_config/port_list.hpp" and expects to find
+/// eda_config::PortList in it. See eda_config.md.
 enum class PortList : uint8_t
 {
     INVALID_PORT,
@@ -30,6 +34,6 @@ enum class PortList : uint8_t
     PORT_COUNT,
 };
 
-} // namespace app
+} // namespace eda_config
 
 /// @}

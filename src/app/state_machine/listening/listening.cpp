@@ -9,7 +9,7 @@
 #include "app/state_machine/listening/listening.hpp"
 #include "app/state_machine/state_machine.hpp"
 #include "app/port.hpp"
-#include "app/port_list.hpp"
+#include "eda_config/port_list.hpp"
 
 #include "eda/port/port.hpp"
 #include "svc/acquisition/port.hpp"
@@ -42,7 +42,7 @@ void ListeningState::entry()
     // Re-entering this state from DISPATCHING re-posts it, which restarts the
     // period: the interval this firmware guarantees is between dispatches, not
     // between timer arms.
-    eda::Port::send_event_critical(app::PortList::COMMS_PORT,
+    eda::Port::send_event_critical(eda_config::PortList::COMMS_PORT,
                                    static_cast<uint32_t>(svc::comms::Event::START_DISPATCH),
                                    0);
 

@@ -1,16 +1,19 @@
-/// @addtogroup grp_app
+/// @addtogroup grp_eda_config
 /// @{
 ///
 /// @file tasks_priorities.hpp
 ///
-/// Header file that declares the priority of each thread in the application.
+/// Header file that declares the priority of each thread this project runs.
 
 #pragma once
 
-namespace app
+namespace eda_config
 {
 
 /// Thread priorities, one per active object.
+///
+/// The values are the project's; the header path and the type name are eda::'s.
+/// See eda_config.md.
 ///
 /// Lower number means higher priority, and every value here is preemptible.
 /// The radio stack's own threads run above all of these, so every thread
@@ -42,6 +45,6 @@ enum class TaskPriorities : int
     SYSTEM_DIAGNOSTICS = 7,
 };
 
-} // namespace app
+} // namespace eda_config
 
 /// @}

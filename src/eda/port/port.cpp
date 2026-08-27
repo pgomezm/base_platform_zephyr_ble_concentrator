@@ -18,9 +18,9 @@ namespace eda
 namespace
 {
 
-/// Size of the port registry. Sized off `app::PortList::PORT_COUNT` so a port
+/// Size of the port registry. Sized off `eda_config::PortList::PORT_COUNT` so a port
 /// added to port_list.hpp cannot silently outgrow it.
-constexpr size_t c_port_list_size_elements = static_cast<size_t>(app::PortList::PORT_COUNT);
+constexpr size_t c_port_list_size_elements = static_cast<size_t>(eda_config::PortList::PORT_COUNT);
 
 /// Array containing the address of all the ports successfully initialized.
 Port* m_active_ports_list[c_port_list_size_elements] = {};
@@ -29,9 +29,9 @@ Port* m_active_ports_list[c_port_list_size_elements] = {};
 ///
 /// Without it, sending to a port nobody registered is a null pointer
 /// dereference.
-bool is_registered(app::PortList port_id)
+bool is_registered(eda_config::PortList port_id)
 {
-    return (app::PortList::INVALID_PORT != port_id)
+    return (eda_config::PortList::INVALID_PORT != port_id)
            && (static_cast<size_t>(port_id) < c_port_list_size_elements)
            && (m_active_ports_list[static_cast<size_t>(port_id)] != nullptr)
            && (m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object != nullptr);
@@ -55,7 +55,7 @@ const char* describe(PostResult result)
 
 } // namespace
 
-PostResult Port::deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+PostResult Port::deliver(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
     if (!is_registered(port_id))
     {
@@ -67,7 +67,7 @@ PostResult Port::deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_
     return p_port->m_active_object->post_event(*p_port, event_id, opt_data_address);
 }
 
-Port::Port() : m_port_id{app::PortList::INVALID_PORT}, m_active_object{nullptr}
+Port::Port() : m_port_id{eda_config::PortList::INVALID_PORT}, m_active_object{nullptr}
 {
     // Initialize all callback pointers to NULL
     for (uint32_t i = 0; i < MAX_PORT_CALLBACKS; ++i)
@@ -76,9 +76,9 @@ Port::Port() : m_port_id{app::PortList::INVALID_PORT}, m_active_object{nullptr}
     }
 }
 
-void Port::init(app::PortList port_id, ActiveObject& active_object)
+void Port::init(eda_config::PortList port_id, ActiveObject& active_object)
 {
-    if ((app::PortList::INVALID_PORT != port_id)
+    if ((eda_config::PortList::INVALID_PORT != port_id)
         && (static_cast<size_t>(port_id) < c_port_list_size_elements))
     {
         m_port_id = port_id;
@@ -100,7 +100,7 @@ void Port::set_event_callback(uint32_t event_id, EventCallback event_callback)
     }
 }
 
-void Port::send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+void Port::send_event(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
     // The result is dropped on purpose: post_event() already counted and logged
     // it. A caller that cannot tolerate losing the event uses
@@ -111,7 +111,7 @@ void Port::send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_dat
     }
 }
 
-void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+void Port::send_event_critical(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
     const PostResult result = deliver(port_id, event_id, opt_data_address);
 
@@ -128,7 +128,7 @@ void Port::send_event_critical(app::PortList port_id, uint32_t event_id, uint32_
     ASSERT_CRITICAL(false);
 }
 
-void Port::send_event_from_isr(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+void Port::send_event_from_isr(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
     if (is_registered(port_id))
     {

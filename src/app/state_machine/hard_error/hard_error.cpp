@@ -7,7 +7,7 @@
 
 #include "app/state_machine/hard_error/hard_error.hpp"
 #include "app/port.hpp"
-#include "app/port_list.hpp"
+#include "eda_config/port_list.hpp"
 
 #include "eda/port/port.hpp"
 #include "utils/fault/fault.hpp"
@@ -34,11 +34,11 @@ void HardErrorState::entry()
 
     // Stop radiating. A device that cannot deliver what it collects should not
     // keep a receiver running and should not keep transmitting.
-    eda::Port::send_event_critical(app::PortList::ACQUISITION_PORT,
+    eda::Port::send_event_critical(eda_config::PortList::ACQUISITION_PORT,
                                    static_cast<uint32_t>(svc::acquisition::Event::STOP_SCAN),
                                    0);
 
-    eda::Port::send_event_critical(app::PortList::COMMS_PORT,
+    eda::Port::send_event_critical(eda_config::PortList::COMMS_PORT,
                                    static_cast<uint32_t>(svc::comms::Event::STOP_DISPATCH),
                                    0);
 

@@ -61,8 +61,8 @@ void App::initialize()
 
     // The application's own thread and port come up before any service, so a
     // service that fails during its own initialize() has somewhere to report to.
-    m_active_object.init_task(TaskPriorities::APP, "app");
-    m_port.init(PortList::APP_PORT, m_active_object);
+    m_active_object.init_task(eda_config::TaskPriorities::APP, "app");
+    m_port.init(eda_config::PortList::APP_PORT, m_active_object);
 
     bool services_ready = true;
 
@@ -103,7 +103,8 @@ void App::initialize()
     // state machine does.
     const Event outcome = services_ready ? Event::SERVICES_READY : Event::SERVICES_FAILED;
 
-    eda::Port::send_event_critical(PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
+    eda::Port::send_event_critical(eda_config::PortList::APP_PORT,
+                                   static_cast<uint32_t>(outcome), 0U);
 }
 
 void App::run()

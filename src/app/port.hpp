@@ -53,7 +53,7 @@ class Port : public eda::Port
 {
 public:
     /// Constructor. Does not join the port registry: call init() before
-    /// anything sends an event to app::PortList::APP_PORT.
+    /// anything sends an event to eda_config::PortList::APP_PORT.
     Port() = default;
 
     /// Handle an event addressed to the application.

@@ -17,7 +17,7 @@ them. They are part of the framework's shape and cost nothing until a module rea
 | Component | Responsibility |
 | --- | --- |
 | `ActiveObject` | One thread plus one statically allocated event queue. Runs the event loop. |
-| `Port` | The address of a module, looked up by `app::PortList` id. `send_event()`/`send_event_from_isr()` deliver to whichever port is registered at that id; `send_event_critical()` refuses to lose the event quietly. |
+| `Port` | The address of a module, looked up by `eda_config::PortList` id. `send_event()`/`send_event_from_isr()` deliver to whichever port is registered at that id; `send_event_critical()` refuses to lose the event quietly. |
 | `StateMachine` / `State` | A state machine with transition history: `change_state()`, `return_to_last_state()`, and a two-phase `set_next_state()`/`change_to_next_state()` for conditional transitions. |
 | `Timer` | Invokes a callback, on the timer's own storage, on expiry. |
 | `IdleHook` | One callback invoked while the backend has nothing else to run. |
@@ -73,7 +73,7 @@ handler is guaranteed to run in the receiving module's own thread.
 
 ## Addressing a port by id, not by reference
 
-`eda::Port::send_event(app::PortList::COMMS_PORT, event_id, opt_data)` looks the target port up in
+`eda::Port::send_event(eda_config::PortList::COMMS_PORT, event_id, opt_data)` looks the target port up in
 a static registry it joined at `init()` time, rather than requiring the sender to hold a reference
 or pointer to it. That way a module only needs `app/port_list.hpp` to reach any other module's
 port, not that module's header.

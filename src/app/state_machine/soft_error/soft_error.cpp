@@ -10,7 +10,7 @@
 #include "app/state_machine/state_machine.hpp"
 #include "app/app_config.hpp"
 #include "app/port.hpp"
-#include "app/port_list.hpp"
+#include "eda_config/port_list.hpp"
 
 #include "eda/port/port.hpp"
 #include "hal/led/led.hpp"
@@ -51,7 +51,7 @@ void SoftErrorState::entry()
 
     // Retrying immediately would burn power without changing anything: whatever
     // failed needs time to become available again.
-    eda::Port::send_event_critical(app::PortList::COMMS_PORT,
+    eda::Port::send_event_critical(eda_config::PortList::COMMS_PORT,
                                    static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK),
                                    0);
 }

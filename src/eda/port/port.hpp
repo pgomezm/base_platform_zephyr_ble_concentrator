@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "app/port_list.hpp"
+#include "eda_config/port_list.hpp"
 #include "eda/active_object/active_object.hpp"
 
 #include <cstdint>
@@ -65,7 +65,7 @@ struct SubsystemResponse
 /// is what keeps the execution contexts in docs/ARCHITECTURE.md section 4
 /// honest.
 ///
-/// Every port registers itself into one static table by `app::PortList` id at
+/// Every port registers itself into one static table by `eda_config::PortList` id at
 /// `init()` time, and `send_event()`/`send_event_from_isr()` look a port up by
 /// that id rather than requiring the sender to hold a reference to it.
 class Port
@@ -80,7 +80,7 @@ public:
     ///
     /// @param port_id Port identifier from the PortList enum
     /// @param active_object Reference to the ActiveObject associated with this port
-    void init(app::PortList port_id, ActiveObject& active_object);
+    void init(eda_config::PortList port_id, ActiveObject& active_object);
 
     /// Set a callback function for a specific event ID
     ///
@@ -93,14 +93,14 @@ public:
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
-    static void send_event(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address);
+    static void send_event(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address);
 
     /// Send an event to a port from an ISR
     ///
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
-    static void send_event_from_isr(app::PortList port_id,
+    static void send_event_from_isr(eda_config::PortList port_id,
                                     uint32_t event_id,
                                     uint32_t opt_data_address);
 
@@ -118,12 +118,12 @@ public:
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
-    static void send_event_critical(app::PortList port_id,
+    static void send_event_critical(eda_config::PortList port_id,
                                     uint32_t event_id,
                                     uint32_t opt_data_address);
 
     /// Port ID
-    app::PortList m_port_id;
+    eda_config::PortList m_port_id;
 
     /// Associated active object
     ActiveObject* m_active_object;
@@ -145,7 +145,7 @@ private:
     /// @param event_id event identifier
     /// @param opt_data_address optional data
     /// @return what became of the event
-    static PostResult deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address);
+    static PostResult deliver(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address);
 
     /// Pure virtual function to be implemented by derived classes to handle event execution
     ///

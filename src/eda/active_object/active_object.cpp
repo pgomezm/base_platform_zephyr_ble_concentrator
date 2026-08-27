@@ -26,7 +26,7 @@ ActiveObject::ActiveObject() : m_thread{}, m_queue{}, m_task_queue_memory{}
     m_queue.init(m_task_queue_memory, s_queue_item_size, s_queue_length);
 }
 
-void ActiveObject::init_task(app::TaskPriorities priority, const char* const p_task_name)
+void ActiveObject::init_task(eda_config::TaskPriorities priority, const char* const p_task_name)
 {
     m_thread.create(&ActiveObject::process_events,
                     this,

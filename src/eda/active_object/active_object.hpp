@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "app/tasks_priorities.hpp"
+#include "eda_config/tasks_priorities.hpp"
 #include "hal/os/os.hpp"
 
 #include <cstddef>
@@ -48,7 +48,7 @@ public:
     ///
     /// @param priority priority of the new thread
     /// @param p_task_name string to identify the thread for debugging purposes
-    void init_task(app::TaskPriorities priority, const char* const p_task_name);
+    void init_task(eda_config::TaskPriorities priority, const char* const p_task_name);
 
 private:
     /// @struct Event

@@ -9,8 +9,8 @@
 #include "svc/acquisition/eddystone_protocol.hpp"
 #include "svc/device_table/subsystem.hpp"
 
-#include "app/port_list.hpp"
-#include "app/tasks_priorities.hpp"
+#include "eda_config/port_list.hpp"
+#include "eda_config/tasks_priorities.hpp"
 #include "config.hpp"
 #include "eda/active_object/active_object.hpp"
 #include "eda/port/port.hpp"
@@ -78,7 +78,7 @@ void on_adv_report(const hal::ble::AdvReport& report)
         return;
     }
 
-    eda::Port::send_event_from_isr(app::PortList::ACQUISITION_PORT,
+    eda::Port::send_event_from_isr(eda_config::PortList::ACQUISITION_PORT,
                                    static_cast<uint32_t>(Event::ADV_REPORT_AVAILABLE),
                                    0);
 }
@@ -182,8 +182,8 @@ bool initialize()
                        sizeof(hal::ble::AdvReport),
                        config::ADV_REPORT_POOL_SIZE);
 
-    s_active_object.init_task(app::TaskPriorities::ACQUISITION, "acquisition");
-    s_port.init(app::PortList::ACQUISITION_PORT, s_active_object);
+    s_active_object.init_task(eda_config::TaskPriorities::ACQUISITION, "acquisition");
+    s_port.init(eda_config::PortList::ACQUISITION_PORT, s_active_object);
 
     if (hal::ble::BleFactory::get_instance().initialize() != hal::ble::BleError::NO_ERROR)
     {

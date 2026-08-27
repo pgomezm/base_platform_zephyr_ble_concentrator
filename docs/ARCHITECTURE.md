@@ -6,7 +6,7 @@ documentation conventions this project had been following only by habit: executi
 discipline, a module-contract format, and a static-memory and overflow philosophy. What each one
 covers, and what was left out on purpose, is called out in §4 and §8.
 
-v5 settles the shape of `src/eda` — the static port registry addressed by `app::PortList` id,
+v5 settles the shape of `src/eda` — the static port registry addressed by `eda_config::PortList` id,
 `StateMachine::change_state()`/`return_to_last_state()`/two-phase `set_next_state()`, and the
 `IdleHook` module — and introduces `hal/os` beneath it: a seam that wraps every kernel primitive
 `eda/` uses (thread, queue, timer, idle callback) so `eda/` never includes a kernel header
@@ -466,7 +466,7 @@ join blocks anyway. One contract for both transports is the point of `ILink`.
   `StateMachine`/`State`, `Timer`, `IdleHook`), and, in `hal/os` beneath it, the thread/queue/timer
   primitives that framework is built from.
 - **Exposes**: `eda::Port::send_event()`/`send_event_from_isr()` (address any module's port by its
-  `app::PortList` id), `eda::Timer`, `eda::IdleHook::register_callback()`.
+  `eda_config::PortList` id), `eda::Timer`, `eda::IdleHook::register_callback()`.
 - **Depends on**: `hal/os` only — not Zephyr directly. `hal/os`'s Zephyr backend is the one place
   in the firmware that includes `<zephyr/kernel.h>` for thread/queue/timer purposes.
 - **Constraint**: no `new`, no `malloc` (same static-allocation rule as everywhere else); a

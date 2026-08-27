@@ -7,8 +7,8 @@
 
 #include "svc/system_diagnostics/subsystem.hpp"
 
-#include "app/port_list.hpp"
-#include "app/tasks_priorities.hpp"
+#include "eda_config/port_list.hpp"
+#include "eda_config/tasks_priorities.hpp"
 #include "eda/active_object/active_object.hpp"
 #include "eda/port/port.hpp"
 #include "eda/timer/timer.hpp"
@@ -68,7 +68,7 @@ void on_heartbeat_timer_expired(eda::Timer* p_timer)
 {
     (void)p_timer;
 
-    eda::Port::send_event_from_isr(app::PortList::SYSTEM_DIAGNOSTICS_PORT,
+    eda::Port::send_event_from_isr(eda_config::PortList::SYSTEM_DIAGNOSTICS_PORT,
                                    static_cast<uint32_t>(Event::HEARTBEAT_DUE),
                                    0);
 }
@@ -135,8 +135,8 @@ void annunciate_fault()
 
 bool initialize()
 {
-    s_active_object.init_task(app::TaskPriorities::SYSTEM_DIAGNOSTICS, "diagnostics");
-    s_port.init(app::PortList::SYSTEM_DIAGNOSTICS_PORT, s_active_object);
+    s_active_object.init_task(eda_config::TaskPriorities::SYSTEM_DIAGNOSTICS, "diagnostics");
+    s_port.init(eda_config::PortList::SYSTEM_DIAGNOSTICS_PORT, s_active_object);
 
     if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS)
         != hal::watchdog::WatchdogError::NO_ERROR)

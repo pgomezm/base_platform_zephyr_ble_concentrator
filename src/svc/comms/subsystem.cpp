@@ -9,8 +9,8 @@
 #include "svc/comms/comms_protocol.hpp"
 
 #include "app/port.hpp"
-#include "app/port_list.hpp"
-#include "app/tasks_priorities.hpp"
+#include "eda_config/port_list.hpp"
+#include "eda_config/tasks_priorities.hpp"
 #include "config.hpp"
 #include "eda/active_object/active_object.hpp"
 #include "eda/port/port.hpp"
@@ -53,7 +53,7 @@ void on_dispatch_timer_expired(eda::Timer* p_timer)
 {
     (void)p_timer;
 
-    eda::Port::send_event_from_isr(app::PortList::COMMS_PORT,
+    eda::Port::send_event_from_isr(eda_config::PortList::COMMS_PORT,
                                    static_cast<uint32_t>(Event::DISPATCH_DUE),
                                    0);
 }
@@ -459,8 +459,8 @@ void dispatch()
 
 bool initialize()
 {
-    s_active_object.init_task(app::TaskPriorities::COMMS, "comms");
-    s_port.init(app::PortList::COMMS_PORT, s_active_object);
+    s_active_object.init_task(eda_config::TaskPriorities::COMMS, "comms");
+    s_port.init(eda_config::PortList::COMMS_PORT, s_active_object);
 
     if (hal::link::LinkFactory::get_instance().initialize() != hal::link::LinkError::NO_ERROR)
     {
@@ -497,7 +497,7 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
                                        ? app::Event::NETWORK_JOINED
                                        : app::Event::NETWORK_JOIN_FAILED;
 
-        eda::Port::send_event_critical(app::PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
+        eda::Port::send_event_critical(eda_config::PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
         break;
     }
 
