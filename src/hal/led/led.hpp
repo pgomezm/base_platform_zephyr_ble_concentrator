@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "led_instances.hpp"
+#include "hal/led/led_instances.hpp"
 
 #include "hal/gpio/gpio.hpp"
 

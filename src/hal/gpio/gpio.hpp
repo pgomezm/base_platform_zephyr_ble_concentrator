@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "gpio_instances.hpp"
+#include "hal/gpio/gpio_instances.hpp"
 
 #include <cstdint>
 

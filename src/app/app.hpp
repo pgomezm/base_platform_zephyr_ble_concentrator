@@ -11,8 +11,8 @@
 
 #pragma once
 
-#include "port.hpp"
-#include "state_machine/state_machine.hpp"
+#include "app/port.hpp"
+#include "app/state_machine/state_machine.hpp"
 
 #include "eda/active_object/active_object.hpp"
 

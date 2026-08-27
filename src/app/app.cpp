@@ -5,7 +5,7 @@
 ///
 /// Source file that implements the App.
 
-#include "app.hpp"
+#include "app/app.hpp"
 #include "eda_config/port_list.hpp"
 #include "eda_config/tasks_priorities.hpp"
 

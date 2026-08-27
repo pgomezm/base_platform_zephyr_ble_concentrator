@@ -10,7 +10,7 @@
 /// to be: every platform-specific line lives behind hal::gpio::IGpio, so this
 /// file compiles unchanged on any backend that provides one.
 
-#include "led.hpp"
+#include "hal/led/led.hpp"
 
 #include "hal/gpio/gpio.hpp"
 
