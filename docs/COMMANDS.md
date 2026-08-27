@@ -189,10 +189,13 @@ What the overlay turns on:
 | `CONFIG_DEBUG_OPTIMIZATIONS` | `-Og` instead of `-Os`, so stepping does not jump backwards and locals are not `<optimized out>` |
 | `CONFIG_DEBUG` | also defines `APP_DEBUG_BUILD`, which is what makes `ASSERT_CRITICAL` real |
 | `CONFIG_DEBUG_THREAD_INFO` | the debugger lists threads by name |
-| `CONFIG_RESET_ON_FATAL_ERROR=n` | a crash stops and prints instead of rebooting and erasing the scene |
-| `CONFIG_THREAD_ANALYZER` | prints real stack usage per thread every 30 s |
-| `CONFIG_HW_STACK_PROTECTION` | a stack overflow faults instead of corrupting RAM quietly |
+| `CONFIG_ASSERT` | Zephyr's own assertions, off by default |
+| `CONFIG_THREAD_ANALYZER` | prints real stack usage per thread every 30 s, by name |
 | `CONFIG_APP_LOG_LEVEL_DBG` | `LOG_DEBUG()` starts coming out |
+
+Every symbol in the overlay has to exist on **both** boards: Zephyr aborts on a Kconfig warning, so
+one that is only defined for Arm takes the Wi-Fi build down with it. The tail of `prj_debug.conf`
+lists what was left out and why.
 
 The thread analyser is worth running once on its own account: every active object uses
 `Thread::STACK_SIZE = 2048`, and that number was chosen by copying, never measured.
@@ -208,14 +211,8 @@ Pick *LoRa (nRF52840): flash and debug* and press F5 — it builds, flashes and 
 `.vscode/tasks.json` has everything else as tasks: build, flash, console, uplink server, format and
 pytest, all from the command palette, all calling the same Python tools a terminal would.
 
-**The ESP32-S3 is Xtensa, not ARM**, so Cortex-Debug cannot drive it. From a terminal:
-
-```sh
-west debug -d build\wifi-debug
-```
-
-or Espressif's own VS Code extension. Its USB-JTAG is on the board's `USB` socket, not the `UART`
-one.
+**The ESP32-S3 is Xtensa, not ARM**, so Cortex-Debug cannot drive it, and as of today debugging it
+does not work at all here. See below.
 
 ### From a terminal
 
@@ -224,10 +221,47 @@ west debug -d build\lora-debug        # start, halted at main
 west attach -d build\lora-debug       # connect to a board already running
 ```
 
+### The ESP32-S3, which does not work yet
+
+Left as an open item on purpose. What was found trying, so nobody has to find it twice:
+
+**It needs OpenOCD from Espressif, not the generic one.** `boards/espressif/esp32s3_devkitc/board.cmake`
+looks for it in one place and nowhere else:
+
+```cmake
+find_program(OPENOCD openocd PATHS ${ESPRESSIF_TOOLCHAIN_PATH}/openocd-esp32/bin NO_DEFAULT_PATH)
+```
+
+**`west espressif install` cannot install it here.** It fails with `could not find build
+configuration`, with or without `-d`, because it expects west's default `build/` layout and this
+repository builds into `build/<variant>`.
+
+**`ESPRESSIF_TOOLCHAIN_PATH` is a CMake variable, not an environment one.** It is set by the
+Espressif toolchain files, which this project never loads: it builds with the Zephyr SDK. Setting
+it in the shell changes nothing.
+
+So the recipe, when it is worth the time, is to skip west entirely: download the `openocd-esp32`
+release zip from Espressif, extract it, and pass both variables at configure time —
+
+```sh
+west build -b esp32s3_devkitc/esp32s3/procpu -d build/wifi-debug -- \
+  -DESPRESSIF_TOOLCHAIN_PATH=<parent of openocd-esp32> \
+  -DOPENOCD=<...>/openocd-esp32/bin/openocd.exe
+```
+
+— which then belongs in `run_build_tool.py` for the Wi-Fi variant, since they are configure-time
+arguments. VS Code would then need a `cppdbg` configuration against the Xtensa GDB, not
+Cortex-Debug.
+
+**Why it is not urgent.** Everything worth stepping through — `eda/`, the four services, the
+fragmentation, the state machine — is the same code on both boards and already debuggable on the
+nRF52840. The only ESP32-only file is `hal/link/wifi/link_wifi.cpp`, whose interesting parts are
+network callbacks where a breakpoint changes the timing and the log tells you more anyway.
+
 ### After a crash
 
-With `CONFIG_RESET_ON_FATAL_ERROR=n` the fault prints the registers and a stack trace instead of
-rebooting. To turn a program counter into a source line:
+Zephyr's default fatal handler halts rather than reboots, so the register dump stays on the
+console. To turn a program counter into a source line:
 
 ```sh
 arm-zephyr-eabi-addr2line -e build\lora-debug\zephyr\zephyr.elf 0x0002a1f4
