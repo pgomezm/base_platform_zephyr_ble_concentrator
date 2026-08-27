@@ -22,6 +22,9 @@
             "runToEntryPoint": "main",
             "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
             "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+            "serverpath": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
+            "armToolchainPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+            "toolchainPrefix": "arm-zephyr-eabi",
             "preLaunchTask": "build lora (debug)"
         },
         {
@@ -34,7 +37,10 @@
             "device": "nRF52840_xxAA",
             "interface": "swd",
             "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
-            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe"
+            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+            "serverpath": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
+            "armToolchainPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+            "toolchainPrefix": "arm-zephyr-eabi"
         },
         {
             "name": "TCP (nRF52840): flash and debug",
@@ -48,6 +54,9 @@
             "runToEntryPoint": "main",
             "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
             "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+            "serverpath": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
+            "armToolchainPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+            "toolchainPrefix": "arm-zephyr-eabi",
             "preLaunchTask": "build tcp (debug)"
         }
     ]
