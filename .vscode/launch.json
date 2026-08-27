@@ -1,0 +1,54 @@
+{
+    // Debugging the nRF52840 DK. Needs the Cortex-Debug extension and the
+    // SEGGER J-Link software, which the DK's onboard debugger speaks.
+    //
+    // Build first, with --debug:
+    //     python build_flash_tools/run_build_tool.py --variant lora --debug
+    //
+    // The ESP32-S3 is Xtensa, not ARM, so Cortex-Debug cannot drive it. Use
+    // `west debug -d build/wifi-debug` from a terminal, or Espressif's own
+    // VS Code extension.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "LoRa (nRF52840): flash and debug",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "jlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/lora-debug/zephyr/zephyr.elf",
+            "device": "nRF52840_xxAA",
+            "interface": "swd",
+            "runToEntryPoint": "main",
+            "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
+            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+            "preLaunchTask": "build lora (debug)"
+        },
+        {
+            "name": "LoRa (nRF52840): attach to a running board",
+            "type": "cortex-debug",
+            "request": "attach",
+            "servertype": "jlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/lora-debug/zephyr/zephyr.elf",
+            "device": "nRF52840_xxAA",
+            "interface": "swd",
+            "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
+            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe"
+        },
+        {
+            "name": "TCP (nRF52840): flash and debug",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "jlink",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/tcp-debug/zephyr/zephyr.elf",
+            "device": "nRF52840_xxAA",
+            "interface": "swd",
+            "runToEntryPoint": "main",
+            "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
+            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+            "preLaunchTask": "build tcp (debug)"
+        }
+    ]
+}

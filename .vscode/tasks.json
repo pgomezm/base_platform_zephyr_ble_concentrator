@@ -1,0 +1,79 @@
+{
+    // Every task runs the same Python tools a terminal would. Nothing here
+    // knows how to build; it all goes through build_flash_tools/.
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build lora (debug)",
+            "type": "shell",
+            "command": "python build_flash_tools/run_build_tool.py --variant lora --debug",
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build tcp (debug)",
+            "type": "shell",
+            "command": "python build_flash_tools/run_build_tool.py --variant tcp --debug",
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build wifi (debug)",
+            "type": "shell",
+            "command": "python build_flash_tools/run_build_tool.py --variant wifi --debug",
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build lora",
+            "type": "shell",
+            "command": "python build_flash_tools/run_build_tool.py --variant lora",
+            "group": {"kind": "build", "isDefault": true},
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "build wifi",
+            "type": "shell",
+            "command": "python build_flash_tools/run_build_tool.py --variant wifi",
+            "group": "build",
+            "problemMatcher": "$gcc"
+        },
+        {
+            "label": "flash lora",
+            "type": "shell",
+            "command": "python build_flash_tools/run_flash_tool.py --variant lora",
+            "problemMatcher": []
+        },
+        {
+            "label": "flash wifi",
+            "type": "shell",
+            "command": "python build_flash_tools/run_flash_tool.py --variant wifi",
+            "problemMatcher": []
+        },
+        {
+            "label": "console",
+            "type": "shell",
+            "command": "python tests/utils/console.py",
+            "problemMatcher": []
+        },
+        {
+            "label": "uplink server",
+            "type": "shell",
+            "command": "python tests/utils/uplink_server.py --format both",
+            "problemMatcher": []
+        },
+        {
+            "label": "format --check",
+            "type": "shell",
+            "command": "python build_flash_tools/run_format_tool.py --check",
+            "problemMatcher": []
+        },
+        {
+            "label": "pytest",
+            "type": "shell",
+            "command": "pytest tests/pytest",
+            "group": "test",
+            "problemMatcher": []
+        }
+    ]
+}

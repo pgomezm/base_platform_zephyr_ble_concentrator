@@ -1,0 +1,29 @@
+{
+    // IntelliSense reads the compile_commands.json the build generates, so it
+    // sees the same include paths and defines the compiler saw. Nothing is
+    // duplicated here: change the build and IntelliSense follows.
+    //
+    // It points at the LoRa build. Switch compileCommands to another variant
+    // when working on Wi-Fi, or headers under hal/link/wifi will look dead.
+    "version": 4,
+    "configurations": [
+        {
+            "name": "lora",
+            "compileCommands": "${workspaceFolder}/build/lora/compile_commands.json",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        },
+        {
+            "name": "lora-debug",
+            "compileCommands": "${workspaceFolder}/build/lora-debug/compile_commands.json",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        },
+        {
+            "name": "wifi",
+            "compileCommands": "${workspaceFolder}/build/wifi/compile_commands.json",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ]
+}
