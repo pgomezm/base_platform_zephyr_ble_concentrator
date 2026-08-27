@@ -18,9 +18,8 @@ namespace eda
 namespace
 {
 
-/// Size of the port registry. `deepsight-polaris-software` hardcodes this to
-/// 10; here it is sized off `app::PortList::PORT_COUNT` instead, so a port
-/// added to port_list.hpp cannot silently outgrow the registry.
+/// Size of the port registry. Sized off `app::PortList::PORT_COUNT` so a port
+/// added to port_list.hpp cannot silently outgrow it.
 constexpr size_t c_port_list_size_elements = static_cast<size_t>(app::PortList::PORT_COUNT);
 
 /// Array containing the address of all the ports successfully initialized.
@@ -28,34 +27,14 @@ Port* m_active_ports_list[c_port_list_size_elements] = {};
 
 /// True if @p port_id is in range and has a live Port registered at that slot.
 ///
-/// deepsight-polaris-software's send_event()/send_event_from_isr() dereference
-/// the registry slot without this check; here it is added, since an
-/// unregistered port id would otherwise be a null pointer dereference rather
-/// than the "TODO: handle uninitialized port" the reference code intends.
+/// Without it, sending to a port nobody registered is a null pointer
+/// dereference.
 bool is_registered(app::PortList port_id)
 {
     return (app::PortList::INVALID_PORT != port_id)
            && (static_cast<size_t>(port_id) < c_port_list_size_elements)
            && (m_active_ports_list[static_cast<size_t>(port_id)] != nullptr)
            && (m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object != nullptr);
-}
-
-/// Look the port up and hand it the event.
-///
-/// @param port_id target port
-/// @param event_id event identifier
-/// @param opt_data_address optional data
-/// @return what became of the event
-PostResult deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
-{
-    if (!is_registered(port_id))
-    {
-        return PostResult::PORT_NOT_READY;
-    }
-
-    Port* const p_port = m_active_ports_list[static_cast<size_t>(port_id)];
-
-    return p_port->m_active_object->post_event(*p_port, event_id, opt_data_address);
 }
 
 /// @param result a failed post
@@ -75,6 +54,18 @@ const char* describe(PostResult result)
 }
 
 } // namespace
+
+PostResult Port::deliver(app::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
+{
+    if (!is_registered(port_id))
+    {
+        return PostResult::PORT_NOT_READY;
+    }
+
+    Port* const p_port = m_active_ports_list[static_cast<size_t>(port_id)];
+
+    return p_port->m_active_object->post_event(*p_port, event_id, opt_data_address);
+}
 
 Port::Port() : m_port_id{app::PortList::INVALID_PORT}, m_active_object{nullptr}
 {
