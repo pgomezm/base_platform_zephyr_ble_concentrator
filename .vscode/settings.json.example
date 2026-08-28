@@ -1,0 +1,27 @@
+{
+    // Where this machine keeps its toolchains. Every path in launch.json and
+    // tasks.json comes from here, so those two files stay the same on every
+    // machine and this one is the only thing anybody edits.
+    //
+    // This file is in .gitignore. Copy settings.json.example over it and fix
+    // the paths for your own install.
+    //
+    // Forward slashes, on Windows too. A backslash in JSON is an escape.
+
+    // The workspace virtualenv. Full path on purpose: a VS Code task terminal
+    // does not inherit an activation done somewhere else.
+    "concentrator.python": "D:/ZephyrWS/.venv/Scripts/python.exe",
+    "concentrator.pytest": "D:/ZephyrWS/.venv/Scripts/pytest.exe",
+
+    // Arm side: the nRF52840 DK, debugged with Cortex-Debug over its onboard
+    // J-Link. The GDB is the Zephyr SDK's, not whatever else is on PATH.
+    "concentrator.armGdb": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
+    "concentrator.armToolchainBin": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+    "concentrator.jlinkGdbServer": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
+
+    // Xtensa side: the ESP32-S3, debugged with cppdbg over OpenOCD. This has to
+    // be Espressif's OpenOCD fork, not a generic build.
+    "concentrator.xtensaGdb": "C:/zephyr-sdk-1.0.1/gnu/xtensa-espressif_esp32s3_zephyr-elf/bin/xtensa-espressif_esp32s3_zephyr-elf-gdb.exe",
+    "concentrator.openocd": "D:/ZephyrWS/tools/openocd-esp32/bin/openocd.exe",
+    "concentrator.openocdScripts": "D:/ZephyrWS/tools/openocd-esp32/share/openocd/scripts"
+}

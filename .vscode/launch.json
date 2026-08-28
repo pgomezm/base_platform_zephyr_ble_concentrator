@@ -21,9 +21,9 @@
             "interface": "swd",
             "runToEntryPoint": "main",
             "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
-            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
-            "serverpath": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
-            "armToolchainPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+            "gdbPath": "${config:concentrator.armGdb}",
+            "serverpath": "${config:concentrator.jlinkGdbServer}",
+            "armToolchainPath": "${config:concentrator.armToolchainBin}",
             "toolchainPrefix": "arm-zephyr-eabi",
             "preLaunchTask": "build lora (debug)"
         },
@@ -37,9 +37,9 @@
             "device": "nRF52840_xxAA",
             "interface": "swd",
             "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
-            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
-            "serverpath": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
-            "armToolchainPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+            "gdbPath": "${config:concentrator.armGdb}",
+            "serverpath": "${config:concentrator.jlinkGdbServer}",
+            "armToolchainPath": "${config:concentrator.armToolchainBin}",
             "toolchainPrefix": "arm-zephyr-eabi"
         },
         {
@@ -53,11 +53,66 @@
             "interface": "swd",
             "runToEntryPoint": "main",
             "svdFile": "${workspaceFolder}/../modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd",
-            "gdbPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gdb.exe",
-            "serverpath": "C:/Program Files/SEGGER/JLink/JLinkGDBServerCL.exe",
-            "armToolchainPath": "C:/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin",
+            "gdbPath": "${config:concentrator.armGdb}",
+            "serverpath": "${config:concentrator.jlinkGdbServer}",
+            "armToolchainPath": "${config:concentrator.armToolchainBin}",
             "toolchainPrefix": "arm-zephyr-eabi",
             "preLaunchTask": "build tcp (debug)"
+        },
+        {
+            // The ESP32-S3 is Xtensa, so Cortex-Debug cannot drive it. This is
+            // Microsoft's cppdbg against OpenOCD, which VS Code starts here and
+            // stops when the session ends.
+            //
+            // OpenOCD has to be Espressif's fork, unpacked at
+            // <workspace>/tools/openocd-esp32. run_build_tool.py passes its
+            // path into the build; see docs/COMMANDS.md.
+            //
+            // The board's USB-JTAG is on the DevKitC's `USB` socket, not the
+            // `UART` one. Flashing still goes over UART, which is why the
+            // preLaunchTask builds and flashes before this attaches.
+            "name": "Wi-Fi (ESP32-S3): flash and debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/build/wifi-debug/zephyr/zephyr.elf",
+            "MIMode": "gdb",
+            "miDebuggerPath": "${config:concentrator.xtensaGdb}",
+            "miDebuggerServerAddress": "localhost:3333",
+            "debugServerPath": "${config:concentrator.openocd}",
+            "debugServerArgs": "-s ${config:concentrator.openocdScripts} -f ${workspaceFolder}/../zephyr/boards/espressif/esp32s3_devkitc/support/openocd.cfg",
+            "serverStarted": "Listening on port \\d+ for gdb connections",
+            "filterStderr": true,
+            "externalConsole": false,
+            "stopAtConnect": true,
+            "setupCommands": [
+                {"text": "set remotetimeout 20"},
+                {"text": "-enable-pretty-printing", "ignoreFailures": true}
+            ],
+            "postRemoteConnectCommands": [
+                // Everything here executes in flash, and a software breakpoint
+                // means writing a break instruction into it, which fails.
+                //
+                // Normally GDB works that out from the target's memory map, but
+                // OpenOCD cannot read one: the image starts at 0x0 with no
+                // ESP-IDF partition table, so it reports the code region as
+                // R/W and GDB picks software breakpoints. This overrides it.
+                //
+                // The cost is real: the ESP32-S3 has two hardware breakpoints.
+                // A third one fails, and the message does not say why.
+                {"text": "monitor gdb_breakpoint_override hard"},
+                {"text": "set remote hardware-breakpoint-limit 2"},
+                {"text": "monitor reset halt"},
+                {"text": "flushregs"},
+                // reset halt leaves the core at the ROM reset vector, which is
+                // not your code yet: the ROM and the second-stage bootloader
+                // still have to run. Break at main and let it get there.
+                {"text": "thbreak main"}
+            ],
+            // ... and then run. Without this the session sits halted in ROM and
+            // looks hung, which it is not.
+            "launchCompleteCommand": "exec-continue",
+            "preLaunchTask": "build and flash wifi (debug)"
         }
     ]
 }
