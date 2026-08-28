@@ -237,42 +237,73 @@ west debug -d build\lora-debug        # start, halted at main
 west attach -d build\lora-debug       # connect to a board already running
 ```
 
-### The ESP32-S3, which does not work yet
+### The ESP32-S3: connects, but breakpoints do not hold
 
-Left as an open item on purpose. What was found trying, so nobody has to find it twice:
+Most of the way there. What works, and where it stops.
 
-**It needs OpenOCD from Espressif, not the generic one.** `boards/espressif/esp32s3_devkitc/board.cmake`
-looks for it in one place and nowhere else:
+**Working.** OpenOCD talks to the chip over the built-in USB-JTAG, GDB connects, symbols resolve —
+it reports the source file and line it is halted at — and the target resets and runs.
 
-```cmake
-find_program(OPENOCD openocd PATHS ${ESPRESSIF_TOOLCHAIN_PATH}/openocd-esp32/bin NO_DEFAULT_PATH)
-```
+**Not working.** Breakpoints never hit.
 
-**`west espressif install` cannot install it here.** It fails with `could not find build
-configuration`, with or without `-d`, because it expects west's default `build/` layout and this
-repository builds into `build/<variant>`.
+#### Getting to where it is now
 
-**`ESPRESSIF_TOOLCHAIN_PATH` is a CMake variable, not an environment one.** It is set by the
-Espressif toolchain files, which this project never loads: it builds with the Zephyr SDK. Setting
-it in the shell changes nothing.
+1. `openocd-esp32` from Espressif's GitHub releases, unpacked at `<workspace>/tools/openocd-esp32`.
+   Not `west espressif install`, which fails with `could not find build configuration` because it
+   expects west's default `build/` layout.
+2. `run_build_tool.py` passes `ESPRESSIF_TOOLCHAIN_PATH`, `OPENOCD` and `OPENOCD_DEFAULT_PATH` into
+   the Wi-Fi build. `ESPRESSIF_TOOLCHAIN_PATH` is a CMake variable, not an environment one, and the
+   Zephyr SDK toolchain never sets it.
+3. **The USB driver.** Windows installs its own WinUSB through WCID, and libusb cannot open it:
+   `LIBUSB_ERROR_NOT_FOUND`. Zadig, Options → List All Devices,
+   `USB JTAG/serial debug unit (Interface 2)` — interface **2**, not 0, which is the CDC serial port
+   you flash through — then Downgrade WCID Driver.
 
-So the recipe, when it is worth the time, is to skip west entirely: download the `openocd-esp32`
-release zip from Espressif, extract it, and pass both variables at configure time —
+Verify with OpenOCD alone before involving VS Code:
 
 ```sh
-west build -b esp32s3_devkitc/esp32s3/procpu -d build/wifi-debug -- \
-  -DESPRESSIF_TOOLCHAIN_PATH=<parent of openocd-esp32> \
-  -DOPENOCD=<...>/openocd-esp32/bin/openocd.exe
+tools\openocd-esp32\bin\openocd.exe -s tools\openocd-esp32\share\openocd\scripts -f <zephyr>\boards\espressif\esp32s3_devkitc\support\openocd.cfg
 ```
 
-— which then belongs in `run_build_tool.py` for the Wi-Fi variant, since they are configure-time
-arguments. VS Code would then need a `cppdbg` configuration against the Xtensa GDB, not
-Cortex-Debug.
+`Listening on port 3333 for gdb connections` means the hard part is done.
 
-**Why it is not urgent.** Everything worth stepping through — `eda/`, the four services, the
-fragmentation, the state machine — is the same code on both boards and already debuggable on the
-nRF52840. The only ESP32-only file is `hal/link/wifi/link_wifi.cpp`, whose interesting parts are
-network callbacks where a breakpoint changes the timing and the log tells you more anyway.
+#### The breakpoint problem
+
+OpenOCD cannot read a partition table, because a Zephyr image starts at 0x0 and is not laid out
+like an ESP-IDF one:
+
+```
+Warn : Failed to get flash maps, result code 0x4!
+Warn : Unknown magic number in partition table!
+```
+
+Without it, OpenOCD hands GDB a memory map that describes the code region as R/W. GDB concludes it
+is RAM and asks for a software breakpoint, which means writing a break instruction into flash:
+
+```
+Warn : address 0x42007a90 not writable
+Error: Failed to write breakpoint instruction (-4)!
+```
+
+`monitor gdb_breakpoint_override hard` in `postRemoteConnectCommands` makes OpenOCD use hardware
+breakpoints regardless. That removes the error — and the breakpoints still do not hit. That is
+where this stands, and the reason is not yet known.
+
+Also tried and abandoned: a temporary breakpoint at `main` in `postRemoteConnectCommands`, which
+does not survive the ROM and second-stage bootloaders and took the session down with it.
+
+The ESP32-S3 has **two** hardware breakpoints. Whatever comes next has to fit in two.
+
+#### Whether to keep going
+
+Nothing that is ESP32-only is worth much stepping. `eda/`, the four services, the fragmentation and
+the state machine are the same code on both boards and already debuggable on the nRF52840. The one
+file that exists only here is `hal/link/wifi/link_wifi.cpp`, and its interesting parts are network
+callbacks where halting changes the timing and the log tells you more.
+
+When a bug turns up that only happens on the S3, this is where to start — and the first question to
+answer is whether the firmware is running at all: open the console next to the debug session. Log
+output means the CPU is running and only GDB's view is wrong; silence means it never started.
 
 ### After a crash
 
