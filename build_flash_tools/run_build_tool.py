@@ -267,7 +267,17 @@ def run_build(variant: str, debug: bool = False) -> Path:
     if debug:
         # CMakeLists appends prj_local.conf to whatever arrives here, so the
         # local overrides still win over the debug overlay.
-        cmake_args.append(f"-DEXTRA_CONF_FILE={PROJECT_ROOT / 'prj_debug.conf'}")
+        overlays = [PROJECT_ROOT / "prj_debug.conf"]
+
+        # A variant may need to walk back part of it. The ESP32-S3 does: -Og
+        # costs enough IRAM that the Wi-Fi blobs run out of heap and the board
+        # never reaches Zephyr's banner. See prj_debug_wifi.conf.
+        per_variant = PROJECT_ROOT / f"prj_debug_{variant}.conf"
+
+        if per_variant.exists():
+            overlays.append(per_variant)
+
+        cmake_args.append("-DEXTRA_CONF_FILE=" + ";".join(str(o) for o in overlays))
 
     if cmake_args:
         command += ["--"] + cmake_args
