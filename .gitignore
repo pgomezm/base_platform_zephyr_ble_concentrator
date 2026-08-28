@@ -39,3 +39,6 @@ output/*.elf
 Thumbs.db
 .idea/
 *.log
+
+# Machine-specific toolchain paths. settings.json.example is the template.
+.vscode/settings.json

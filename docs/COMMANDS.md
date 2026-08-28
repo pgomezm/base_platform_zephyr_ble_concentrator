@@ -200,6 +200,22 @@ lists what was left out and why.
 The thread analyser is worth running once on its own account: every active object uses
 `Thread::STACK_SIZE = 2048`, and that number was chosen by copying, never measured.
 
+### Setting it up on a new machine
+
+`launch.json` and `tasks.json` name no path of their own. Everything they need comes from
+`.vscode/settings.json`, which is **not** committed. Copy the template and edit it:
+
+```sh
+copy .vscode\settings.json.example .vscode\settings.json
+```
+
+Eight paths: the workspace virtualenv's `python` and `pytest`, the Zephyr SDK's Arm GDB and its
+`bin` directory, the SEGGER J-Link GDB server, the Zephyr SDK's Xtensa GDB, and Espressif's OpenOCD
+with its scripts directory. Forward slashes, on Windows too — a backslash in JSON is an escape.
+
+If one is wrong VS Code says which setting it could not resolve, which is a better failure than the
+`ENOENT` you get from a hardcoded path that moved.
+
 ### From VS Code
 
 `.vscode/launch.json` has the configurations. Needs the **Cortex-Debug** extension and the SEGGER
