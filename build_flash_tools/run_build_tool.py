@@ -19,6 +19,7 @@ answers it.
 
 import argparse
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -32,6 +33,14 @@ from log_tool import setup_logger  # noqa: E402
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+#: Where a debug probe's tools are unpacked, if they are. The Espressif build
+#: looks for OpenOCD in exactly one place and nowhere else, and that place is a
+#: CMake variable the Zephyr SDK toolchain never sets, so this passes it.
+#:
+#: Absent is fine: the arguments are only added when the directory is there, so
+#: a clone without it still builds and only loses the ability to debug.
+TOOLS_ROOT = PROJECT_ROOT.parent / "tools"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 VERSION_FILE = PROJECT_ROOT / "src" / "version.h"
 
@@ -64,8 +73,36 @@ VARIANTS = {
         # Espressif's build step shells out to this. It lives in the workspace
         # virtualenv, so a console that never activated it fails here.
         "needs_on_path": ["esptool"],
+        # And debugging needs Espressif's OpenOCD, which is not the generic one.
+        "needs_openocd_esp32": True,
     },
 }
+
+
+def put_virtualenv_on_path() -> None:
+    """Make the interpreter's own scripts reachable by name.
+
+    Running .venv/Scripts/python.exe directly is a normal way to use a
+    virtualenv, and it is what a VS Code task does. It sets sys.prefix but not
+    PATH, so `esptool` is installed and still not findable - and CMake looks for
+    it on PATH.
+
+    Activating fixes it too, but requiring activation makes the tools work from
+    one console and not from another for no reason a caller can see. This does
+    the same thing without asking.
+    """
+    scripts = Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin")
+
+    if not scripts.is_dir():
+        return
+
+    path = os.environ.get("PATH", "")
+
+    if str(scripts).lower() in [entry.lower() for entry in path.split(os.pathsep)]:
+        return
+
+    os.environ["PATH"] = str(scripts) + os.pathsep + path
+    logger.debug("Added %s to PATH", scripts)
 
 
 def check_prerequisites(variant: str) -> None:
@@ -213,6 +250,20 @@ def run_build(variant: str, debug: bool = False) -> Path:
 
     cmake_args = list(spec["cmake_args"])
 
+    openocd = TOOLS_ROOT / "openocd-esp32" / "bin" / "openocd.exe"
+
+    if spec.get("needs_openocd_esp32") and openocd.exists():
+        scripts = TOOLS_ROOT / "openocd-esp32" / "share" / "openocd" / "scripts"
+
+        # boards/espressif/.../board.cmake resolves OPENOCD relative to
+        # ESPRESSIF_TOOLCHAIN_PATH and discards anything outside it, so both
+        # have to be given together.
+        cmake_args += [
+            f"-DESPRESSIF_TOOLCHAIN_PATH={TOOLS_ROOT.as_posix()}",
+            f"-DOPENOCD={openocd.as_posix()}",
+            f"-DOPENOCD_DEFAULT_PATH={scripts.as_posix()}",
+        ]
+
     if debug:
         # CMakeLists appends prj_local.conf to whatever arrives here, so the
         # local overrides still win over the debug overlay.
@@ -251,6 +302,7 @@ def file_artefact(artefact: Path, variant: str, desc: str = None) -> Path:
 def main() -> int:
     args = parse_args()
     setup_logger(logger, args.log)
+    put_virtualenv_on_path()
 
     try:
         if args.action in ("clean", "clean_build"):

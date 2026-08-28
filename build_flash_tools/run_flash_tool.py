@@ -19,7 +19,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from log_tool import setup_logger  # noqa: E402
-from run_build_tool import PROJECT_ROOT, VARIANTS, build_dir  # noqa: E402
+from run_build_tool import (  # noqa: E402
+    PROJECT_ROOT,
+    VARIANTS,
+    build_dir,
+    put_virtualenv_on_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +45,7 @@ def parse_args():
 def main() -> int:
     args = parse_args()
     setup_logger(logger, args.log)
+    put_virtualenv_on_path()
 
     target = build_dir(args.variant, args.debug)
 
