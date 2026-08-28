@@ -103,14 +103,14 @@
                 {"text": "monitor gdb_breakpoint_override hard"},
                 {"text": "set remote hardware-breakpoint-limit 2"},
                 {"text": "monitor reset halt"},
-                {"text": "flushregs"},
-                // reset halt leaves the core at the ROM reset vector, which is
-                // not your code yet: the ROM and the second-stage bootloader
-                // still have to run. Break at main and let it get there.
-                {"text": "thbreak main"}
+                {"text": "flushregs"}
             ],
-            // ... and then run. Without this the session sits halted in ROM and
-            // looks hung, which it is not.
+            // Run after connecting. reset halt leaves the core at the ROM
+            // reset vector; without this the session sits there looking hung.
+            //
+            // No breakpoint at main: getting one to hold across the ROM and
+            // second-stage bootloaders is unreliable here. Set breakpoints in
+            // the editor once it is running and they take effect immediately.
             "launchCompleteCommand": "exec-continue",
             "preLaunchTask": "build and flash wifi (debug)"
         }
