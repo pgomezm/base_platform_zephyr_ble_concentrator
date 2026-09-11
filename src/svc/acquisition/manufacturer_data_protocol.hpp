@@ -1,12 +1,12 @@
-/// @defgroup grp_svc_acquisition_protocol Eddystone Protocol
+/// @defgroup grp_svc_acquisition_protocol Manufacturer Data Protocol
 ///
-/// Data structures for the Eddystone advertising protocol emitted by the
-/// sensor endpoints.
+/// Data structures for the manufacturer specific advertising data emitted by
+/// the sensor endpoints.
 ///
 /// @addtogroup grp_svc_acquisition_protocol
 /// @{
 ///
-/// @file eddystone_protocol.hpp
+/// @file manufacturer_data_protocol.hpp
 ///
 /// Header file that declares the wire format of the endpoint advertisements.
 
@@ -18,23 +18,14 @@
 namespace svc::acquisition
 {
 
-/// Eddystone frame types.
-enum class EddystoneFrameType : uint8_t
-{
-    UID = 0x00U,
-    URL = 0x10U,
-    TLM = 0x20U,
-    EID = 0x30U,
-    CUSTOM = 0xFFU,
-};
-
-/// Sensor payload carried by the custom frame.
+/// Sensor payload carried by the advertisement.
 ///
-/// Mirrors `SvcEddystoneSensorData` in
-/// `base_platform_baremetal_ble/src/svc/eddystone/eddystone_protocol.h`
-/// **byte for byte**. If that struct changes, this one changes with it, and the
-/// static assertions below stop the build until it does.
-struct __attribute__((packed)) EddystoneSensorData
+/// Mirrors `UtilsManufacturerDataPayload` in
+/// `base_platform_baremetal_ble/src/utils/manufacturer_data/manufacturer_data_protocol.h`
+/// **byte for byte**. The endpoint firmware owns that definition and this one
+/// follows it; if it changes, this changes with it, and the static assertions
+/// below stop the build until it does.
+struct __attribute__((packed)) SensorPayload
 {
     /// Sensor temperature, in degrees Celsius.
     int8_t sns_temperature;
@@ -59,10 +50,20 @@ struct __attribute__((packed)) EddystoneSensorData
 
     /// The endpoint's own sequence number or uptime. **Not** wall-clock time.
     uint32_t timestamp;
+
+    /// Bitfield of status flags, copied through from the endpoint's measurement.
+    uint8_t status_flags;
 };
 
-static_assert(sizeof(EddystoneSensorData) == 16U,
-              "EddystoneSensorData must match the endpoint's 16 byte payload");
+static_assert(sizeof(SensorPayload) == 17U,
+              "SensorPayload must match the endpoint's 17 byte payload");
+
+/// A magnet arrived at the endpoint since its previous measurement.
+///
+/// A latch, not a level: the endpoint only watches the arrival edge, so a
+/// magnet swiped between two measurements still reports, and one resting on the
+/// device does not keep reporting.
+constexpr uint8_t SENSOR_STATUS_MAGNET_PRESENT = 1U << 0U;
 
 /// BLE AD type for Manufacturer Specific Data.
 ///
@@ -75,12 +76,8 @@ constexpr uint8_t AD_TYPE_MANUFACTURER_SPECIFIC = 0xFFU;
 /// element.
 ///
 /// **This is the wire format, taken from what the endpoint actually
-/// transmits** — `build_custom_advertising_data()` in
-/// `base_platform_baremetal_ble/src/svc/eddystone/eddystone.c` — and not from
-/// that project's `SvcEddystoneCustomFrame`, which declares a leading
-/// `frame_type` byte that the builder never emits. Mirroring the struct instead
-/// of the transmission is how this went unnoticed: both sides agreed on a
-/// layout neither one used.
+/// transmits** — `utils_manufacturer_data_build_advertising_data()` in
+/// `base_platform_baremetal_ble/src/utils/manufacturer_data/manufacturer_data.c`.
 ///
 /// The endpoint writes the company id low byte first, and every target here is
 /// little-endian, so a plain copy reads it correctly.
@@ -95,11 +92,11 @@ struct __attribute__((packed)) ManufacturerFrame
     uint16_t company_id;
 
     /// The sensor payload.
-    EddystoneSensorData sensor_data;
+    SensorPayload sensor_data;
 };
 
-static_assert(sizeof(ManufacturerFrame) == 18U,
-              "ManufacturerFrame must stay 18 bytes: 2 of company id plus 16 of sensor data");
+static_assert(sizeof(ManufacturerFrame) == 19U,
+              "ManufacturerFrame must stay 19 bytes: 2 of company id plus 17 of sensor data");
 
 } // namespace svc::acquisition
 

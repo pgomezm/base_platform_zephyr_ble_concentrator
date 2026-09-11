@@ -45,6 +45,10 @@ struct Reading
 
     /// The endpoint's own sequence number or uptime, not wall-clock time.
     uint32_t endpoint_timestamp;
+
+    /// Bitfield of the endpoint's status flags, carried through without being interpreted. See
+    /// svc::acquisition::SENSOR_STATUS_MAGNET_PRESENT.
+    uint8_t status_flags;
 };
 
 /// One entry in the table: an endpoint and its last known reading.

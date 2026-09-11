@@ -116,7 +116,7 @@ at DR0.
 
 `snapshot()` returns devices whose reading has not reached the network yet, not every fresh device.
 A device that has not advertised since its last successful uplink adds nothing — the table holds a
-last value, so repeating it restates what the far end already has, at 25 bytes of airtime a record.
+last value, so repeating it restates what the far end already has, at 26 bytes of airtime a record.
 
 Delivery is acknowledged, not assumed. `send_fragment()` calls `device_table::mark_reported()` for
 each record **after** the transport accepted the packet, passing back the `update_seq` the uplink

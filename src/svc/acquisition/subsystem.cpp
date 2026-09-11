@@ -6,7 +6,7 @@
 /// Source file that implements the acquisition service.
 
 #include "svc/acquisition/subsystem.hpp"
-#include "svc/acquisition/eddystone_protocol.hpp"
+#include "svc/acquisition/manufacturer_data_protocol.hpp"
 #include "svc/device_table/subsystem.hpp"
 
 #include "eda_config/port_list.hpp"
@@ -169,6 +169,7 @@ void drain_report_pool()
         reading.acc_z = frame.sensor_data.acc_z_raw_data;
         reading.battery_mv = frame.sensor_data.battery_mv;
         reading.endpoint_timestamp = frame.sensor_data.timestamp;
+        reading.status_flags = frame.sensor_data.status_flags;
 
         device_table::upsert(report.address, report.rssi, reading);
     }

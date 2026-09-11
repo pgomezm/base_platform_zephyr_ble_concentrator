@@ -150,6 +150,7 @@ EndpointRecord to_record(const device_table::Entry& entry, uint32_t now_s)
     record.acc_z = entry.reading.acc_z;
     record.battery_mv = entry.reading.battery_mv;
     record.endpoint_timestamp = entry.reading.endpoint_timestamp;
+    record.status_flags = entry.reading.status_flags;
 
     return record;
 }

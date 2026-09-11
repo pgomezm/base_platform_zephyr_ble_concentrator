@@ -41,7 +41,7 @@ constexpr uint16_t MAX_DEVICES = CONFIG_APP_MAX_DEVICES;
 /// acquisition thread is busy before one is dropped.
 constexpr uint16_t ADV_REPORT_POOL_SIZE = CONFIG_APP_ADV_REPORT_POOL_SIZE;
 
-/// Company identifier accepted in the Eddystone custom frame.
+/// Company identifier accepted in the endpoint's manufacturer specific data.
 ///
 /// Advertising reports carrying any other company id are discarded in the
 /// acquisition thread. This is the only content filter in the receive path.

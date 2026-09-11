@@ -88,8 +88,8 @@ static_assert(sizeof(UplinkHeader) == 12U, "UplinkHeader must stay 12 bytes");
 /// the axes in particular made the accelerometer unusable on the far end, which
 /// is the field the industrial application cares about most.
 ///
-/// The record is 25 bytes instead of 13. What that costs is one number: at DR3
-/// a fragment carries about 9 records instead of 15, so a cycle reports fewer
+/// The record is 26 bytes instead of 13. What that costs is one number: at DR3
+/// a fragment carries about 8 records instead of 15, so a cycle reports fewer
 /// devices. Nothing is lost by that - unreported devices stay pending and go
 /// out next cycle - and it is paid for by raising the uplink allowance to 3,
 /// which is still 0.13% airtime. See APP_LINK_LORA_MAX_UPLINKS_PER_DISPATCH.
@@ -112,7 +112,7 @@ struct __attribute__((packed)) EndpointRecord
     uint16_t seconds_since_seen;
 
     // Everything below is the endpoint's payload, unmodified. The layout
-    // mirrors svc::acquisition::EddystoneSensorData field for field. It is
+    // mirrors svc::acquisition::SensorPayload field for field. It is
     // restated here rather than embedded so that the uplink wire format stays
     // readable in one place, and so that a change to the advertisement is a
     // deliberate change here too rather than a silent one.
@@ -140,10 +140,14 @@ struct __attribute__((packed)) EndpointRecord
 
     /// The endpoint's own sequence number or uptime. **Not** wall-clock time.
     uint32_t endpoint_timestamp;
+
+    /// Bitfield of the endpoint's status flags, carried through without being interpreted. Bit 0
+    /// is set when a magnet arrived at the endpoint since its previous measurement.
+    uint8_t status_flags;
 };
 
-static_assert(sizeof(EndpointRecord) == 25U,
-              "EndpointRecord must stay 25 bytes: 9 added here plus the endpoint's 16");
+static_assert(sizeof(EndpointRecord) == 26U,
+              "EndpointRecord must stay 26 bytes: 9 added here plus the endpoint's 17");
 
 } // namespace svc::comms
 

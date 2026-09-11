@@ -12,7 +12,7 @@ from: over the air from other devices, rather than from an ADC on this board.
 
 | | |
 | --- | --- |
-| **Owns** | The BLE scan lifecycle, the raw advertising report pool, and the Eddystone frame parser. The only writer into `svc::device_table`. |
+| **Owns** | The BLE scan lifecycle, the raw advertising report pool, and the manufacturer data frame parser. The only writer into `svc::device_table`. |
 | **Exposes** | `initialize()`, `get_port()`, `get_dropped_report_count()`. Nothing else calls into this service. |
 | **Depends on** | `hal/ble`, `svc/device_table`. |
 
