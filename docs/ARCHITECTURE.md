@@ -370,9 +370,10 @@ constraint that isn't free to change — replaces the plain description table fr
 - **`hal/led`** wraps a GPIO as an LED (`turn_on`/`turn_off`/`toggle`), handed out by
   `Manager::get_instance()`. It has **no platform subdirectory**: every platform-specific line is
   behind `IGpio`, which is what splitting GPIO out bought.
-- **`hal/watchdog`** exposes `IWatchdog` through `WatchdogFactory::get_instance()`. `refresh()` has
-  exactly one caller, `svc/system_diagnostics`: a module that refreshes from its own thread proves
-  that one thread is alive, not that the firmware is.
+- **`hal/watchdog`** exposes `IWatchdog` through `WatchdogFactory::get_instance()`. `app` sets the
+  timeout at the end of bring-up; `refresh()` has exactly one caller, `eda::IdleHook`, which runs
+  only when every other thread is blocked or sleeping. A module that refreshes from its own thread
+  would prove that one thread is alive, not that the firmware is.
 
 ### Who is allowed to name the RTOS
 

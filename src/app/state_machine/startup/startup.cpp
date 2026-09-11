@@ -42,13 +42,13 @@ void StartupState::entry()
     // The device table evicts stale entries on its own, so collecting through
     // an outage costs nothing and the first uplink after recovery carries
     // whatever was heard meanwhile.
-    eda::Port::send_event_critical(eda_config::PortList::ACQUISITION_PORT,
+    eda::Port::send_event(eda_config::PortList::ACQUISITION_PORT,
                                    static_cast<uint32_t>(svc::acquisition::Event::START_SCAN),
                                    0);
 
     // Services are already initialized by this point: this state waits for the
     // network, which is the only part of coming up that can fail slowly.
-    eda::Port::send_event_critical(eda_config::PortList::COMMS_PORT,
+    eda::Port::send_event(eda_config::PortList::COMMS_PORT,
                                    static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK),
                                    0);
 }

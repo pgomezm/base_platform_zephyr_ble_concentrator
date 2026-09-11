@@ -2,7 +2,7 @@
 
 @defgroup grp_svc_system_diagnostics System Diagnostics Service
 @ingroup grp_svc
-@brief Heartbeat, watchdog and health reporting
+@brief Heartbeat, fault annunciation and health reporting
 
 Runs the checks that say whether the device itself is healthy, as opposed to what it is
 measuring.
@@ -11,15 +11,17 @@ measuring.
 
 | | |
 | --- | --- |
-| **Owns** | The heartbeat timer, the watchdog feed, and the health summary. |
+| **Owns** | The heartbeat timer, the fault annunciator, and the health summary. |
 | **Exposes** | `initialize()`, `get_port()`. |
-| **Depends on** | `hal/watchdog`, `hal/led`, and read-only access to `svc/device_table` and `svc/acquisition` counters. |
+| **Depends on** | `hal/led`, and read-only access to `svc/device_table` and `svc/acquisition` counters. |
 
 ## Constraints
 
-**The watchdog is fed here and nowhere else.** A module that feeds it from its own thread turns the
-watchdog into proof that one thread is alive, which is not what it is for. Feeding it from the
-lowest-priority thread means a reset happens when the system as a whole stops making progress.
+**This service does not touch the watchdog.** It used to arm it and feed it from the
+`HEARTBEAT_DUE` handler, which made the watchdog prove that the heartbeat timer was still firing —
+the one thing nobody doubted. `app` arms it now and `eda::IdleHook` feeds it from idle, so what it
+measures is whether the system reaches idle at all. A module that feeds a watchdog from its own
+thread is vouching for itself.
 
 **This service never transmits.** It reads link status; it does not call `hal::link::send()`. That
 belongs to `svc::comms` alone.

@@ -6,6 +6,7 @@
 /// Source file that implements the App.
 
 #include "app/app.hpp"
+#include "app/app_config.hpp"
 #include "eda_config/port_list.hpp"
 #include "eda_config/tasks_priorities.hpp"
 
@@ -41,11 +42,6 @@ void App::initialize()
 {
     LOG_INFO("base_platform_zephyr_ble_concentrator starting");
 
-    // Wire the idle hook once, here, since app owns overall bring-up order.
-    // No callback is registered by default: see eda::IdleHook and
-    // hal/os/os.md for why this exists with nothing using it yet.
-    hal::os::register_idle_callback(&eda::IdleHook::invoke);
-
     // Construct every HAL singleton now, while this is still the only thread.
     //
     // The build compiles with -fno-threadsafe-statics (see CMakeLists.txt for
@@ -58,6 +54,18 @@ void App::initialize()
     (void)hal::ble::BleFactory::get_instance();
     (void)hal::link::LinkFactory::get_instance();
     (void)hal::watchdog::WatchdogFactory::get_instance();
+
+    // Wire the idle hook once, here, since app owns overall bring-up order.
+    // eda::IdleHook::invoke() feeds the watchdog, so this also has to happen
+    // before the timeout is armed below: registering is what creates the
+    // backend's idle thread, and nothing feeds until it exists.
+    hal::os::register_idle_callback(&eda::IdleHook::invoke);
+
+    if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS)
+        != hal::watchdog::WatchdogError::NO_ERROR)
+    {
+        LOG_WARNING("watchdog unavailable, continuing without it");
+    }
 
     // The application's own thread and port come up before any service, so a
     // service that fails during its own initialize() has somewhere to report to.
@@ -103,8 +111,7 @@ void App::initialize()
     // state machine does.
     const Event outcome = services_ready ? Event::SERVICES_READY : Event::SERVICES_FAILED;
 
-    eda::Port::send_event_critical(eda_config::PortList::APP_PORT,
-                                   static_cast<uint32_t>(outcome), 0U);
+    eda::Port::send_event(eda_config::PortList::APP_PORT, static_cast<uint32_t>(outcome), 0U);
 }
 
 void App::run()
