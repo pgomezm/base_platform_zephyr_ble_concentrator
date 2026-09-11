@@ -1,9 +1,9 @@
 '''
-Build a concentrator variant and file the result under output/.
+Build a concentrator config and file the result under output/.
 
-    python build_flash_tools/run_build_tool.py --variant lora
-    python build_flash_tools/run_build_tool.py --variant wifi --action clean_build
-    python build_flash_tools/run_build_tool.py --variant tcp --desc bench
+    python build_flash_tools/run_build_tool.py --config lora
+    python build_flash_tools/run_build_tool.py --config wifi --action clean_build
+    python build_flash_tools/run_build_tool.py --config tcp --desc bench
 
 Reads the version out of src/version.h, takes the git commit hash, builds,
 then copies the artefact into output/ under a name that says what it is.
@@ -50,7 +50,7 @@ VERSION_FILE = PROJECT_ROOT / "src" / "version.h"
 #: The Wi-Fi build needs no transport flag: its board conf sets
 #: CONFIG_APP_LINK_WIFI, because that board has neither an SX127x nor a wired
 #: interface and building it any other way is a mistake rather than a choice.
-VARIANTS = {
+BUILD_CONFIGS = {
     "lora": {
         "board": "nrf52840dk/nrf52840",
         "snippet": None,
@@ -105,7 +105,7 @@ def put_virtualenv_on_path() -> None:
     logger.debug("Added %s to PATH", scripts)
 
 
-def check_prerequisites(variant: str) -> None:
+def check_prerequisites(config: str) -> None:
     """Fail now, with the real reason, rather than inside CMake.
 
     Forgetting to activate the workspace virtualenv surfaces twenty seconds
@@ -113,12 +113,12 @@ def check_prerequisites(variant: str) -> None:
     missing package and invites installing it system-wide. It is almost always
     the virtualenv.
 
-    :param variant: which build is about to run
+    :param config: which build is about to run
     :raises RuntimeError: if something the build needs is missing
     """
     in_virtualenv = sys.prefix != sys.base_prefix
 
-    for command in VARIANTS[variant].get("needs_on_path", []):
+    for command in BUILD_CONFIGS[config].get("needs_on_path", []):
         if shutil.which(command) is not None:
             continue
 
@@ -136,13 +136,13 @@ def check_prerequisites(variant: str) -> None:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Build a concentrator variant.")
-    parser.add_argument("--variant", choices=sorted(VARIANTS), default="lora",
+    parser = argparse.ArgumentParser(description="Build a concentrator config.")
+    parser.add_argument("--config", choices=sorted(BUILD_CONFIGS), default="lora",
                         help="which build to produce (default: lora)")
     parser.add_argument("--action", choices=["build", "clean", "clean_build"], default="build",
                         help="incremental build, remove the build directory, or both")
     parser.add_argument("--debug", action="store_true",
-                        help="apply prj_debug.conf and build into build/<variant>-debug")
+                        help="apply prj_debug.conf and build into build/<config>-debug")
     parser.add_argument("--desc", default=None,
                         help="label to add to the artefact name, e.g. a bench or a site")
     parser.add_argument("--log", choices=["debug", "info", "warning", "error", "critical"],
@@ -150,8 +150,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_dir(variant: str, debug: bool = False) -> Path:
-    """One directory per variant, and a separate one for its debug build.
+def build_dir(config: str, debug: bool = False) -> Path:
+    """One directory per config, and a separate one for its debug build.
 
     A debug build is a different Kconfig, so sharing a directory with the
     release build would mean a full reconfigure every time you switch. Keeping
@@ -162,35 +162,17 @@ def build_dir(variant: str, debug: bool = False) -> Path:
     they do not even share a devicetree - the TCP snippet deletes the SX127x
     node the board overlay declares.
     """
-    return PROJECT_ROOT / "build" / (variant + "-debug" if debug else variant)
+    return PROJECT_ROOT / "build" / (config + "-debug" if debug else config)
 
 
 def get_git_commit_hash() -> str:
-    """First 8 characters of HEAD, with a marker when the tree is dirty.
-
-    The marker is the point. A binary built from uncommitted work, labelled with
-    a clean commit hash, is a file that lies about what is in it - and it lies
-    exactly when it matters, which is when something is wrong and the hash is
-    what you are trusting.
-    """
+    """First 8 characters of HEAD, so a filed artefact says which source built it."""
     try:
-        commit = subprocess.check_output(
+        return subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT).decode("utf-8").strip()[:8]
     except Exception:
         logger.error("Failed to get the git commit hash.")
         return "nogit"
-
-    try:
-        dirty = subprocess.check_output(
-            ["git", "status", "--porcelain"], cwd=PROJECT_ROOT).decode("utf-8").strip()
-    except Exception:
-        dirty = ""
-
-    if dirty:
-        logger.warning("Working tree is dirty: this artefact is not reproducible from %s", commit)
-        return commit + "-dirty"
-
-    return commit
 
 
 def get_firmware_version(desc: str = None) -> str:
@@ -228,8 +210,8 @@ def get_firmware_version(desc: str = None) -> str:
     return version
 
 
-def run_clean(variant: str, debug: bool = False) -> None:
-    target = build_dir(variant, debug)
+def run_clean(config: str, debug: bool = False) -> None:
+    target = build_dir(config, debug)
 
     if target.exists():
         logger.info("Removing %s", target)
@@ -238,10 +220,10 @@ def run_clean(variant: str, debug: bool = False) -> None:
         logger.info("Nothing to clean: %s does not exist", target)
 
 
-def run_build(variant: str, debug: bool = False) -> Path:
-    """Build the variant and return the path to its artefact."""
-    spec = VARIANTS[variant]
-    target = build_dir(variant, debug)
+def run_build(config: str, debug: bool = False) -> Path:
+    """Build the config and return the path to its artefact."""
+    spec = BUILD_CONFIGS[config]
+    target = build_dir(config, debug)
 
     command = ["west", "build", "-b", spec["board"], "-d", str(target)]
 
@@ -269,10 +251,10 @@ def run_build(variant: str, debug: bool = False) -> Path:
         # local overrides still win over the debug overlay.
         overlays = [PROJECT_ROOT / "prj_debug.conf"]
 
-        # A variant may need to walk back part of it. The ESP32-S3 does: -Og
+        # A config may need to walk back part of it. The ESP32-S3 does: -Og
         # costs enough IRAM that the Wi-Fi blobs run out of heap and the board
         # never reaches Zephyr's banner. See prj_debug_wifi.conf.
-        per_variant = PROJECT_ROOT / f"prj_debug_{variant}.conf"
+        per_variant = PROJECT_ROOT / f"prj_debug_{config}.conf"
 
         if per_variant.exists():
             overlays.append(per_variant)
@@ -282,7 +264,7 @@ def run_build(variant: str, debug: bool = False) -> Path:
     if cmake_args:
         command += ["--"] + cmake_args
 
-    logger.info("Building %s: %s", variant, " ".join(command))
+    logger.info("Building %s: %s", config, " ".join(command))
     subprocess.run(command, cwd=PROJECT_ROOT, check=True)
 
     artefact = target / "zephyr" / spec["artefact"]
@@ -293,13 +275,13 @@ def run_build(variant: str, debug: bool = False) -> Path:
     return artefact
 
 
-def file_artefact(artefact: Path, variant: str, desc: str = None) -> Path:
+def file_artefact(artefact: Path, config: str, desc: str = None) -> Path:
     """Copy the artefact into output/ under a name that identifies it."""
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     version = get_firmware_version(desc)
     commit = get_git_commit_hash()
-    name = f"concentrator-{variant}_{version}.{commit}{artefact.suffix}"
+    name = f"concentrator-{config}_{version}.{commit}{artefact.suffix}"
 
     destination = OUTPUT_DIR / name
     shutil.copy2(artefact, destination)
@@ -316,14 +298,14 @@ def main() -> int:
 
     try:
         if args.action in ("clean", "clean_build"):
-            run_clean(args.variant, args.debug)
+            run_clean(args.config, args.debug)
 
         if args.action == "clean":
             return 0
 
-        check_prerequisites(args.variant)
+        check_prerequisites(args.config)
 
-        artefact = run_build(args.variant, args.debug)
+        artefact = run_build(args.config, args.debug)
 
         # A debug build is for a bench, not for a board that ships. Filing it in
         # output/ next to the release artefacts is how one ends up flashed by
@@ -331,7 +313,7 @@ def main() -> int:
         if args.debug:
             logger.info("Debug build at %s, not filed in output/", artefact)
         else:
-            file_artefact(artefact, args.variant, args.desc)
+            file_artefact(artefact, args.config, args.desc)
     except subprocess.CalledProcessError as error:
         logger.error("Build failed with status %d", error.returncode)
         return error.returncode

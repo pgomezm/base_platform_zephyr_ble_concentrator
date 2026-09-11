@@ -5,12 +5,12 @@ Python tools for building and flashing. The version comes out of
 `output/` under a name that says what it is.
 
 ```sh
-python build_flash_tools/run_build_tool.py --variant lora
-python build_flash_tools/run_build_tool.py --variant wifi --action clean_build
-python build_flash_tools/run_flash_tool.py --variant wifi
+python build_flash_tools/run_build_tool.py --config lora
+python build_flash_tools/run_build_tool.py --config wifi --action clean_build
+python build_flash_tools/run_flash_tool.py --config wifi
 ```
 
-Variants are `lora`, `tcp` and `wifi`. Each builds into `build/<variant>/`, one
+Configs are `lora`, `tcp` and `wifi`. Each builds into `build/<config>/`, one
 directory apiece — the LoRa and TCP builds share a board and would otherwise
 overwrite each other, and they do not even share a devicetree, since the TCP
 snippet deletes the SX127x node the board overlay declares.
@@ -29,13 +29,6 @@ hoping the result is identical.
 
 The binaries are gitignored. The directory is kept by a `.gitkeep` so the tools
 have somewhere to write on a fresh clone; a repository is not an artefact store.
-
-## The dirty marker
-
-A tree with uncommitted changes produces `…4f2a91c3-dirty.hex` and a warning.
-A binary built from uncommitted work but labelled with a clean commit hash is a
-file that lies about its own contents, and it lies exactly when it matters —
-when something is wrong and the hash is what you are trusting.
 
 ## The console
 
