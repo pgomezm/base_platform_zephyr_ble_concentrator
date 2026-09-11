@@ -37,35 +37,7 @@ bool is_registered(eda_config::PortList port_id)
            && (m_active_ports_list[static_cast<size_t>(port_id)]->m_active_object != nullptr);
 }
 
-/// @param result a failed post
-/// @return what to latch in utils::fault
-utils::fault::Reason to_fault_reason(PostResult result)
-{
-    return (result == PostResult::PORT_NOT_READY) ? utils::fault::Reason::PORT_NOT_READY
-                                                  : utils::fault::Reason::EVENT_LOST;
-}
-
-/// @param result a failed post
-/// @return text for the log
-const char* describe(PostResult result)
-{
-    return (result == PostResult::PORT_NOT_READY) ? "the port has nothing registered"
-                                                  : "the port queue was full";
-}
-
 } // namespace
-
-PostResult Port::deliver(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
-{
-    if (!is_registered(port_id))
-    {
-        return PostResult::PORT_NOT_READY;
-    }
-
-    Port* const p_port = m_active_ports_list[static_cast<size_t>(port_id)];
-
-    return p_port->m_active_object->post_event(*p_port, event_id, opt_data_address);
-}
 
 Port::Port() : m_port_id{eda_config::PortList::INVALID_PORT}, m_active_object{nullptr}
 {
@@ -102,29 +74,34 @@ void Port::set_event_callback(uint32_t event_id, EventCallback event_callback)
 
 void Port::send_event(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
 {
-    // The result is dropped on purpose: post_event() already counted and logged
-    // it. A caller that cannot tolerate losing the event uses
-    // send_event_critical().
-    if (deliver(port_id, event_id, opt_data_address) == PostResult::PORT_NOT_READY)
-    {
-        LOG_WARNING("send_event to unregistered port %u", static_cast<unsigned>(port_id));
-    }
-}
+    PostResult result = PostResult::PORT_NOT_READY;
 
-void Port::send_event_critical(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address)
-{
-    const PostResult result = deliver(port_id, event_id, opt_data_address);
+    // is_registered() is what stands between a send to a port nobody
+    // initialised and a null dereference. It is also why the failure below can
+    // distinguish "nothing there" from "queue full", which are different faults
+    // with different causes.
+    if (is_registered(port_id))
+    {
+        Port* const p_port = m_active_ports_list[static_cast<size_t>(port_id)];
+
+        result = p_port->m_active_object->post_event(*p_port, event_id, opt_data_address);
+    }
 
     if (result == PostResult::OK)
     {
         return;
     }
 
-    LOG_ERROR("critical event %u lost on port %u: %s",
+    const bool not_ready = (result == PostResult::PORT_NOT_READY);
+
+    LOG_ERROR("event %u lost on port %u: %s",
               event_id,
               static_cast<unsigned>(port_id),
-              describe(result));
-    utils::fault::report(to_fault_reason(result));
+              not_ready ? "the port has nothing registered" : "the port queue was full");
+
+    utils::fault::report(not_ready ? utils::fault::Reason::PORT_NOT_READY
+                                   : utils::fault::Reason::EVENT_LOST);
+
     ASSERT_CRITICAL(false);
 }
 

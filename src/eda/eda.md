@@ -6,8 +6,20 @@
 This module provides the event-driven framework every service in this firmware is built on.
 Nothing in it includes a kernel header. It includes `hal/os/os.hpp` instead, and every thread,
 queue and timer it needs is a call into that abstraction, which is what lets the whole layer move
-to another RTOS by writing one backend rather than by being rewritten. See `hal/os/os.md` for the
-one seam — the idle hook — that could only be approximated on Zephyr.
+to another RTOS by writing one backend rather than by being rewritten.
+
+`IdleHook` adds a second HAL dependency, `hal/watchdog`, because the watchdog is fed from idle and
+idle is where this module runs. It is still a seam and not a platform: no kernel type crosses it,
+and a port carries the watchdog backend along with the OS one. A project that takes `eda/` and has
+no watchdog has to supply a `hal::watchdog` that does nothing — that is the price of feeding it
+from the only context where feeding proves anything.
+
+The feed is not the registered callback: it runs first, and it runs whether anything is registered
+or not, so nothing that gets added later can quietly take the watchdog with it. The callback slot
+is for background work that only makes sense when nothing else is running. Nothing registers one
+today. Keep it that way unless there is a real reason: idle has no schedule, so whatever goes there
+runs at a rate nobody chose, and work that has to happen at a known rate belongs to an active
+object, where it has a priority.
 
 A few pieces are here before anything uses them, `StateMachine::return_to_last_state()` among
 them. They are part of the framework's shape and cost nothing until a module reaches for one.
@@ -17,10 +29,10 @@ them. They are part of the framework's shape and cost nothing until a module rea
 | Component | Responsibility |
 | --- | --- |
 | `ActiveObject` | One thread plus one statically allocated event queue. Runs the event loop. |
-| `Port` | The address of a module, looked up by `eda_config::PortList` id. `send_event()`/`send_event_from_isr()` deliver to whichever port is registered at that id; `send_event_critical()` refuses to lose the event quietly. |
+| `Port` | The address of a module, looked up by `eda_config::PortList` id. `send_event()` delivers from a thread and refuses to lose the event quietly; `send_event_from_isr()` delivers from an interrupt and counts a drop instead. |
 | `StateMachine` / `State` | A state machine with transition history: `change_state()`, `return_to_last_state()`, and a two-phase `set_next_state()`/`change_to_next_state()` for conditional transitions. |
 | `Timer` | Invokes a callback, on the timer's own storage, on expiry. |
-| `IdleHook` | One callback invoked while the backend has nothing else to run. |
+| `IdleHook` | Feeds the watchdog from idle, and runs one optional application callback there. |
 
 ## Events that may be lost, and events that may not
 
@@ -39,10 +51,14 @@ the event **repeats**:
 `STOP_DISPATCH` is the one worth naming: lose it and a concentrator that has entered `HARD_ERROR`
 keeps transmitting, and the counter in the uplink header says so only to whoever reads it.
 
-So one-shot events go out through `Port::send_event_critical()`. It posts exactly as `send_event()`
-does; the difference is what happens when the queue is full. The drop is logged as an error rather
-than a warning, and `ASSERT_CRITICAL` halts the device on a debug build — where, with the watchdog
-running, halting means a reset a few seconds later with a watchdog reset reason. See `assert/`.
+Every event a thread sends is a one-shot command or outcome, so `Port::send_event()` treats a drop
+as a fault rather than as a statistic: it is logged as an error, latched in `utils::fault`, and
+`ASSERT_CRITICAL` halts the device on a debug build — where, with the watchdog running, halting
+means a reset a few seconds later with a watchdog reset reason. See `assert/`.
+
+There is no lenient variant. There was one, and in the whole firmware nothing ever called it: the
+repeating events in the left column all arrive through `send_event_from_isr()`, which counts its
+drops because an interrupt has nowhere to report them.
 
 **This is a detector, not a fix.** `ASSERT_CRITICAL` compiles out of a release build, so in the
 field a lost critical event is still a lost critical event, now with an error in the log. The real
@@ -90,7 +106,7 @@ blocking the sender.
 
 - **`post_event()`/`post_event_from_isr()` return a `PostResult`, not `void` or a bare `bool`.** A
   full queue has to be distinguishable from a port nobody registered, because the two mean
-  different things to `send_event_critical()` and land as different reasons in `utils::fault`.
+  different things to `send_event()` and land as different reasons in `utils::fault`.
   Silent overflow is not acceptable here (docs/ARCHITECTURE.md section 4.1), so the drop is
   counted and logged as well.
 - **`send_event()`/`send_event_from_isr()` check that the target port is registered before

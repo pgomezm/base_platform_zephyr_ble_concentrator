@@ -88,7 +88,15 @@ public:
     /// @param callback Function to be called when the event is received
     void set_event_callback(uint32_t event_id, EventCallback callback);
 
-    /// Send an event to a port
+    /// Send an event to a port.
+    ///
+    /// A drop is not survivable: it is logged as an error, latched in
+    /// utils::fault, and trips ASSERT_CRITICAL on a debug build. There is no
+    /// lenient variant, because every event this firmware sends from a thread
+    /// describes a change rather than a moment — a command or an outcome — and
+    /// losing one leaves two modules disagreeing about what the device is doing
+    /// forever. Events that merely describe a moment, and whose next one is
+    /// already coming, arrive through send_event_from_isr().
     ///
     /// @param port_id Target port identifier from the PortList enum
     /// @param event_id Event identifier
@@ -101,24 +109,6 @@ public:
     /// @param event_id Event identifier
     /// @param opt_data_address Optional data associated with the event
     static void send_event_from_isr(eda_config::PortList port_id,
-                                    uint32_t event_id,
-                                    uint32_t opt_data_address);
-
-    /// Send an event the firmware cannot correctly continue without.
-    ///
-    /// Same as send_event(), except that a drop is not survivable: it is logged
-    /// as an error, latched in utils::fault, and trips ASSERT_CRITICAL on a
-    /// debug build.
-    ///
-    /// Use it when the event does not repeat. A tick or an advertising report
-    /// describes a moment and another is already coming; a command or an
-    /// outcome describes a change, and losing one leaves two modules disagreeing
-    /// about what the device is doing forever.
-    ///
-    /// @param port_id Target port identifier from the PortList enum
-    /// @param event_id Event identifier
-    /// @param opt_data_address Optional data associated with the event
-    static void send_event_critical(eda_config::PortList port_id,
                                     uint32_t event_id,
                                     uint32_t opt_data_address);
 
@@ -136,17 +126,6 @@ protected:
     void execute_callback(uint32_t event_id, uint32_t opt_data_address = 0);
 
 private:
-    /// Look the port up in the registry and hand it the event.
-    ///
-    /// A member rather than a free function because posting is ActiveObject's
-    /// private business and Port is what it grants friendship to.
-    ///
-    /// @param port_id target port
-    /// @param event_id event identifier
-    /// @param opt_data_address optional data
-    /// @return what became of the event
-    static PostResult deliver(eda_config::PortList port_id, uint32_t event_id, uint32_t opt_data_address);
-
     /// Pure virtual function to be implemented by derived classes to handle event execution
     ///
     /// @param event_id Event identifier

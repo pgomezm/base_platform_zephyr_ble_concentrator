@@ -59,10 +59,19 @@ Zephyr has no equivalent — its idle thread is internal to the kernel and is no
 code is meant to run. `register_idle_callback()` approximates one with a dedicated thread at the
 lowest priority the build allows (`os_zephyr.cpp`, `idle_approximation_thread()`), which calls the
 registered callback and yields, in a loop. It only actually runs once every other thread is
-blocked or sleeping, which is the property that matters for `eda::IdleHook`'s contract, but it is
-a real thread competing for the scheduler, not a hook running with the CPU otherwise doing nothing.
-Nothing in this firmware registers a callback today; the mechanism exists because it was asked
-for.
+blocked or sleeping, which is the property that matters, but it is a real thread competing for the
+scheduler, not a hook running with the CPU otherwise doing nothing.
+
+There is one callback, and there can only be one: `eda::IdleHook::invoke`, wired here by `app`
+during bring-up. It feeds the watchdog, then runs whatever `eda::IdleHook` has registered — which
+is nothing, today. That is what makes the approximation worth its cost, because the property this thread
+has — it runs only once every other thread is blocked or sleeping — is exactly the property the
+watchdog needs to measure. Registering is also what creates the thread, so a firmware that wires
+nothing never pays for one.
+
+The price is that the kernel's own idle thread never runs, so the SoC never enters the low power
+state that thread would select. On a mains-powered board that costs nothing. On a battery-powered
+one it does, and the cost has not been measured here.
 
 ## Semaphore and Mutex
 

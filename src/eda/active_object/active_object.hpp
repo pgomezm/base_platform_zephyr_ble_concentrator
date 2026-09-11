@@ -111,7 +111,7 @@ private:
 ///
 /// Overflow has to be observable rather than silent (docs/ARCHITECTURE.md
 /// section 4), so a drop is counted as well as logged, and the post functions
-/// report what happened so eda::Port::send_event_critical() can act on it.
+/// report what happened so eda::Port::send_event() can act on it.
 ///
 /// @return the number of events dropped since boot
 uint32_t get_dropped_event_count();

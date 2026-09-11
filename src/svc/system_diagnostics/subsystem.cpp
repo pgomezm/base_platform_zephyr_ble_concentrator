@@ -13,7 +13,6 @@
 #include "eda/port/port.hpp"
 #include "eda/timer/timer.hpp"
 #include "hal/led/led.hpp"
-#include "hal/watchdog/watchdog.hpp"
 #include "svc/acquisition/subsystem.hpp"
 #include "svc/device_table/subsystem.hpp"
 #include "utils/fault/fault.hpp"
@@ -35,12 +34,6 @@ namespace
 
 /// Period of the heartbeat, in milliseconds.
 constexpr uint32_t HEARTBEAT_PERIOD_MS = 1000U;
-
-/// Watchdog timeout, in milliseconds.
-///
-/// Several heartbeat periods, so a single late tick under load does not reset a
-/// healthy device.
-constexpr uint32_t WATCHDOG_TIMEOUT_MS = 10U * HEARTBEAT_PERIOD_MS;
 
 /// How often the health summary is logged, in heartbeats.
 constexpr uint32_t HEALTH_LOG_INTERVAL = 60U;
@@ -90,8 +83,9 @@ void log_health()
 
 /// Show the fault: ERROR and ACTIVITY blinking together, heartbeat off.
 ///
-/// The watchdog keeps being fed, so this blinks until somebody looks at it. A
-/// device that resets itself erases what went wrong.
+/// A faulted device still reaches idle, so it is still fed and it blinks until
+/// somebody looks at it. That is deliberate: a device that resets itself erases
+/// what went wrong.
 ///
 /// On a board with no LEDs there is nothing to see and the log is all there is,
 /// which is why the reason is repeated rather than said once.
@@ -138,12 +132,6 @@ bool initialize()
     s_active_object.init_task(eda_config::TaskPriorities::SYSTEM_DIAGNOSTICS, "diagnostics");
     s_port.init(eda_config::PortList::SYSTEM_DIAGNOSTICS_PORT, s_active_object);
 
-    if (hal::watchdog::WatchdogFactory::get_instance().set_timeout(WATCHDOG_TIMEOUT_MS)
-        != hal::watchdog::WatchdogError::NO_ERROR)
-    {
-        LOG_WARNING("watchdog unavailable, continuing without it");
-    }
-
     s_heartbeat_timer.start();
 
     LOG_INFO("system diagnostics ready");
@@ -161,10 +149,6 @@ void Port::execute_event(uint32_t event_id, uint32_t opt_data_address)
     switch (static_cast<Event>(event_id))
     {
     case Event::HEARTBEAT_DUE:
-        // Fed from here and nowhere else: a watchdog fed by the thread that
-        // needs watching proves only that one thread is alive.
-        (void)hal::watchdog::WatchdogFactory::get_instance().refresh();
-
         ++s_heartbeat_count;
 
         // A faulted device keeps being fed and keeps blinking. It stops
