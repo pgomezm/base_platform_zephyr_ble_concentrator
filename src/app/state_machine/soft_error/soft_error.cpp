@@ -110,14 +110,14 @@ void SoftErrorState::dispatch_event(uint32_t event_id, uint32_t opt_data_address
     {
     case Event::RETRY_TIMEOUT:
         eda::Port::send_event(eda_config::PortList::COMMS_PORT,
-                                       static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK),
-                                       0);
+                              static_cast<uint32_t>(svc::comms::Event::JOIN_NETWORK),
+                              0);
         break;
 
     case Event::NETWORK_JOIN_FAILED:
         // Stay here and wait longer. Leaving for another state and coming back
-        // would work too, but it would run entry() again and re-arm from the
-        // counter twice for one failure.
+        // would work too, but it would run entry() again and double the delay
+        // twice for one failure.
         schedule_retry();
         break;
 
