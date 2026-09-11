@@ -172,6 +172,27 @@ void drain_report_pool()
         reading.status_flags = frame.sensor_data.status_flags;
 
         device_table::upsert(report.address, report.rssi, reading);
+
+        // The advertising cadence is invisible anywhere else: an uplink carries
+        // one record per device per dispatch however often the endpoint
+        // advertises. Read the gap between two of these lines to see how often
+        // it really talks.
+        //
+        // Built only when the log level is DEBUG, which is the --debug build.
+        // The address comes off the controller little-endian, so it is printed
+        // high byte first to match what the endpoint calls itself.
+        LOG_DEBUG("adv at %u s from %02x:%02x:%02x:%02x:%02x:%02x, "
+                  "rssi %d dBm, temp %d C, batt %u mV",
+                  static_cast<unsigned>(hal::system::get_uptime_seconds()),
+                  static_cast<unsigned>(report.address[5]),
+                  static_cast<unsigned>(report.address[4]),
+                  static_cast<unsigned>(report.address[3]),
+                  static_cast<unsigned>(report.address[2]),
+                  static_cast<unsigned>(report.address[1]),
+                  static_cast<unsigned>(report.address[0]),
+                  static_cast<int>(report.rssi),
+                  static_cast<int>(reading.temperature),
+                  static_cast<unsigned>(reading.battery_mv));
     }
 }
 
