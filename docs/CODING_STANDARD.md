@@ -152,7 +152,7 @@ the failure looks like corrupted data rather than a dangling pointer.
 **To close it:** `uintptr_t`, and a typed wrapper if the ownership rule ever needs enforcing rather
 than documenting.
 
-## D3 — the Wi-Fi variant has no fault annunciator
+## D3 — the Wi-Fi config has no fault annunciator
 
 **Rule:** 7.
 **What:** the ESP32-S3 DevKitC defines no LED aliases, so `hal::gpio` returns absent pins and the

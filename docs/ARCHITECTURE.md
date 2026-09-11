@@ -100,12 +100,12 @@ product line, not an identity.
 definition is not verifying it against the wire.** Only the code that serialises
 counts.
 
-## 3. Board: standalone nRF52840 DevKit, two variants
+## 3. Board: standalone nRF52840 DevKit, two configs
 
-The native BLE radio handles scanning in both variants. What differs is the module on the SPI
+The native BLE radio handles scanning in both configs. What differs is the module on the SPI
 header, and therefore how collected readings leave the device.
 
-| variant | module | transport | selected by |
+| config | module | transport | selected by |
 | --- | --- | --- | --- |
 | LoRa | Modtronix inAir9 (SX1276) | LoRaWAN, US915 | `CONFIG_APP_LINK_LORA` (default) |
 | TCP | Wiznet W5500 | TCP to a fixed server | `CONFIG_APP_LINK_TCP` + `-S eth-w5500` |
@@ -120,7 +120,7 @@ in one place.
 
 Boards with Ethernet but no BLE radio (Nucleo F429ZI, H743ZI2) were evaluated and dropped: giving
 them BLE needs an external HCI controller, whereas staying on the nRF52840 DK makes BLE a
-non-problem in both variants.
+non-problem in both configs.
 
 ## 4. Execution contexts and concurrency discipline
 
@@ -216,7 +216,7 @@ while Wi-Fi transmits. Nothing in this firmware causes that and nothing in it ca
 30 s period carrying a few hundred bytes the window is small, and losing an advertisement costs
 little here because the table holds last values and the endpoints re-advertise every second. It is
 still the one place where the hardware, not the code, decides how long the radio is unavailable,
-and it is the reason the wired variant exists.
+and it is the reason the wired config exists.
 
 ## 5. Uplink packet — US915 airtime math
 
@@ -549,7 +549,7 @@ operation.
 The scaffold is done and the firmware builds in three configurations: LoRa, TCP with a static
 address, and TCP with DHCP.
 
-| variant | FLASH | RAM |
+| config | FLASH | RAM |
 | --- | --- | --- |
 | LoRa | 120 KB (11.5%) | 55 KB (21.0%) |
 | TCP | 155 KB (14.8%) | 80 KB (30.5%) |

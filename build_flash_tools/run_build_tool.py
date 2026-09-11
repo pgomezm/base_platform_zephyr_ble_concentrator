@@ -254,10 +254,10 @@ def run_build(config: str, debug: bool = False) -> Path:
         # A config may need to walk back part of it. The ESP32-S3 does: -Og
         # costs enough IRAM that the Wi-Fi blobs run out of heap and the board
         # never reaches Zephyr's banner. See prj_debug_wifi.conf.
-        per_variant = PROJECT_ROOT / f"prj_debug_{config}.conf"
+        per_config = PROJECT_ROOT / f"prj_debug_{config}.conf"
 
-        if per_variant.exists():
-            overlays.append(per_variant)
+        if per_config.exists():
+            overlays.append(per_config)
 
         cmake_args.append("-DEXTRA_CONF_FILE=" + ";".join(str(o) for o in overlays))
 

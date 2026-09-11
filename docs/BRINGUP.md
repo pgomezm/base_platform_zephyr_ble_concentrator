@@ -1,7 +1,7 @@
 # Bring-up: first LoRaWAN join
 
 How to take a freshly wired unit from powered-off to an uplink visible on the
-gateway, and how to read the failures on the way. Written for the LoRa variant;
+gateway, and how to read the failures on the way. Written for the LoRa config;
 the TCP one has no equivalent procedure yet because no W5500 has been wired up.
 
 The point of the order below is that each step tells you something the next one
@@ -40,7 +40,7 @@ transmitting into an unmatched load can damage the output stage.
 window timeouts. Without it the join starts and then hangs waiting.
 
 **Confirm the module is an inAir9, not an inAir9B.** The B is the +20 dBm
-variant and needs `power-amplifier-output = "pa-boost"` in the overlay. Setting
+config and needs `power-amplifier-output = "pa-boost"` in the overlay. Setting
 that wrong still builds, and transmits into the wrong output stage.
 
 ## 2. Raise the log level

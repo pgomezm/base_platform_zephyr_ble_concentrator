@@ -33,7 +33,7 @@ there is no upstream network server to register a device with. The join server
 below is the whole story.
 
 Both Conduits sit on the same subnet — this one at .45, the EU unit at .172 —
-which is worth remembering when the TCP variant needs somewhere to send to.
+which is worth remembering when the TCP config needs somewhere to send to.
 
 ### LoRa card
 
@@ -147,7 +147,7 @@ from the US unit: they are separate configurations on separate hardware.
 
 ### What EU868 would change in the firmware
 
-This is not a variant the firmware supports today, and the differences are not
+This is not a config the firmware supports today, and the differences are not
 cosmetic:
 
 - **Region.** `CONFIG_LORAWAN_REGION_EU868` instead of `US915`, selected through
@@ -164,7 +164,7 @@ cosmetic:
   equivalent.
 
 If both regions are actually going to be deployed, region becomes a build
-variant in the same way the transport already is: one Kconfig choice, one set of
+config in the same way the transport already is: one Kconfig choice, one set of
 constants behind it, and nothing above `hal/link` aware of which was picked.
 
 ## Credentials

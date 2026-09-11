@@ -21,13 +21,13 @@ The platform SDK only.
 
 ## Why this module exists
 
-The concentrator ships in more than one variant, and the only thing that differs
+The concentrator ships in more than one config, and the only thing that differs
 between them is how collected readings leave the device: LoRaWAN on the
 nRF52840 build, TCP on a board with a wired network. Acquisition, the device
 table, the state machine and the uplink wire format are identical.
 
 Naming the module after the transport — the `hal::lora` it started as — would
-have forced the second variant to be a fork of the whole repository, and every
+have forced the second config to be a fork of the whole repository, and every
 fix to `eda/` or `svc::acquisition` would then have to be applied twice.
 `hal::link` is the seam that keeps it one repository with two builds.
 
@@ -134,13 +134,13 @@ Zephyr subsystem that backend needs — `LORA`/`LORAWAN` for one, `NETWORKING`/
 `NET_TCP`/`NET_SOCKETS` for the other. That is why `prj.conf` mentions neither:
 the transport is one symbol, not a block of them.
 
-Build the wired TCP variant with:
+Build the wired TCP config with:
 
 ```sh
 west build -b nrf52840dk/nrf52840 <app> -- -DCONFIG_APP_LINK_TCP=y
 ```
 
-Build the Wi-Fi variant with:
+Build the Wi-Fi config with:
 
 ```sh
 west build -b esp32s3_devkitc/esp32s3/procpu <app>
@@ -174,7 +174,7 @@ behind anyone's back.
 
 `get_max_payload_size()` returns the backend's `..._MAX_FRAGMENT`, default 242
 — the LoRaWAN ceiling. TCP has no such limit, but declaring one keeps
-`svc::comms` fragmenting exactly as it does on LoRaWAN, so both variants emit the
+`svc::comms` fragmenting exactly as it does on LoRaWAN, so both configs emit the
 same wire format and there is one fragmentation path to test instead of two. A
-fragment built by a socket variant is always one a LoRa build could also have
+fragment built by a socket config is always one a LoRa build could also have
 sent.

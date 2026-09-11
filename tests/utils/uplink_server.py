@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bench receiver for the concentrator's TCP and Wi-Fi variants.
+"""Bench receiver for the concentrator's TCP and Wi-Fi configs.
 
 Listens for the concentrator to connect, decodes each uplink and prints it. The
 decoding lives in ``uplink_protocol.py`` next to this file, so the same code is

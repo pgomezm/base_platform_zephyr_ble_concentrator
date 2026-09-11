@@ -4,8 +4,8 @@ BLE concentrator firmware. It listens for `base_platform_baremetal_ble` sensor e
 advertising in a room, keeps the last reading from each of them, and every 15 minutes sends
 everything it collected upstream.
 
-It ships in two variants that differ only in how those readings leave the device — LoRaWAN or TCP —
-and both run on the same Nordic nRF52840 DK. See "The two variants" below.
+It ships in two configs that differ only in how those readings leave the device — LoRaWAN or TCP —
+and both run on the same Nordic nRF52840 DK. See "The two configs" below.
 
 `docs/ARCHITECTURE.md` is the design document and `docs/CODING_STANDARD.md` is the rule set the
 code is written to, including every place it is knowingly broken. This README covers building
@@ -69,10 +69,10 @@ that applies to it.
 
 ## Hardware
 
-Both variants are the same nRF52840 DK with a different module on the same four SPI pins, so only
+Both configs are the same nRF52840 DK with a different module on the same four SPI pins, so only
 one can be plugged in at a time.
 
-### LoRa variant: Modtronix inAir9 (SX1276)
+### LoRa config: Modtronix inAir9 (SX1276)
 
 The plain one with the RFO output. The inAir9B is the +20 dBm variant and needs
 `power-amplifier-output = "pa-boost"` in the overlay instead: setting that wrong still builds, it
@@ -98,7 +98,7 @@ taken from a datasheet.
 `boards/nrf52840dk_nrf52840.overlay` explains why those indices are what they are. Read it before
 wiring: the header index in devicetree is not the D number.
 
-### TCP variant: Wiznet W5500
+### TCP config: Wiznet W5500
 
 Same SPI pins, plus an interrupt and a reset line.
 
@@ -121,10 +121,10 @@ that shifts does not fail the build, it produces a controller that never answers
 
 ## Build
 
-Three variants build from this repository. All three have been built against **Zephyr v4.4.1**
+Three configs build from this repository. All three have been built against **Zephyr v4.4.1**
 with **Zephyr SDK 1.0.1**:
 
-| variant | board | flash | RAM |
+| config | board | flash | RAM |
 | --- | --- | --- | --- |
 | LoRaWAN (default) | nRF52840 DK + inAir9 | 137184 B / 1 MB (13.08%) | 56112 B / 256 KB (21.41%) |
 | TCP | nRF52840 DK + W5500 | 137936 B / 1 MB (13.15%) | 69520 B / 256 KB (26.52%) |
@@ -138,8 +138,8 @@ system heap Espressif's Wi-Fi and Bluetooth drivers declare. See the comment in 
 `build_flash_tools/` holds the tools. Activate the workspace virtualenv first, then:
 
 ```sh
-python build_flash_tools/run_build_tool.py --variant lora     # lora | tcp | wifi
-python build_flash_tools/run_flash_tool.py --variant lora
+python build_flash_tools/run_build_tool.py --config lora     # lora | tcp | wifi
+python build_flash_tools/run_flash_tool.py --config lora
 python tests/utils/console.py                                 # the device console
 python build_flash_tools/run_format_tool.py --check           # clang-format
 ```
@@ -207,7 +207,7 @@ west config build.dir-fmt "build/{board}/{app}"
 ```
 
 That last line gives each board-and-application pair its own build directory, so switching between
-the two variants does not silently reuse the other one's CMake cache.
+the two configs does not silently reuse the other one's CMake cache.
 
 `west update` pulls in Zephyr's own module list, which is where `loramac-node` — the stack behind
 `CONFIG_LORAWAN` — comes from.
@@ -237,13 +237,13 @@ west config build.dir-fmt "build/{board}/{app}"
 
 Also needed on the host: `cmake >= 3.20`, `ninja`, `gperf`, `dtc` (device-tree-compiler).
 
-### The two variants
+### The two configs
 
-The concentrator ships in two variants that differ only in how collected
+The concentrator ships in two configs that differ only in how collected
 readings leave the device. Everything above `src/hal/link` is identical, so this
 is one repository with two builds rather than two firmwares.
 
-| variant | hardware on the SPI header | selected by |
+| config | hardware on the SPI header | selected by |
 | --- | --- | --- |
 | LoRaWAN (default) | Modtronix inAir9 (SX1276) | `CONFIG_APP_LINK_LORA` |
 | TCP | Wiznet W5500 | `CONFIG_APP_LINK_TCP` plus the `eth-w5500` snippet |
@@ -264,7 +264,7 @@ west build -b nrf52840dk/nrf52840 base_platform_zephyr_ble_concentrator --pristi
 west flash
 ```
 
-The TCP variant, which builds with no Ethernet hardware present:
+The TCP config, which builds with no Ethernet hardware present:
 
 ```
 west build -b nrf52840dk/nrf52840 base_platform_zephyr_ble_concentrator --pristine -S eth-w5500 -- -DCONFIG_APP_LINK_TCP=y
@@ -340,7 +340,7 @@ configurations, and no W5500 has been connected to check that it works. Downlink
 accepted but never delivered: that would need a reader thread, and framing over a stream is
 undecided.
 
-The consequence when you flash either variant today: it comes up, scans, collects readings into the
+The consequence when you flash either config today: it comes up, scans, collects readings into the
 device table, and then cycles through `STARTUP` to `SOFT_ERROR` when it tries to dispatch.
 
 Open items are listed in `docs/ARCHITECTURE.md` section 9.
