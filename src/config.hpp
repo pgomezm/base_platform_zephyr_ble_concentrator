@@ -178,9 +178,6 @@ constexpr const char* LINK_LORA_JOIN_EUI = CONFIG_APP_LINK_LORA_JOIN_EUI;
 /// a real key: override it from a gitignored prj_local.conf.
 constexpr const char* LINK_LORA_APP_KEY = CONFIG_APP_LINK_LORA_APP_KEY;
 
-/// Whether the DevEUI is derived from the SoC's factory identifier.
-constexpr bool LINK_LORA_DEV_EUI_FROM_HWINFO = IS_ENABLED(CONFIG_APP_LINK_LORA_DEV_EUI_FROM_HWINFO);
-
 #if !defined(CONFIG_APP_LINK_LORA_DEV_EUI_FROM_HWINFO)
 
 /// DevEUI, as 16 hex characters, when it is not derived from hardware.
